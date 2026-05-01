@@ -358,7 +358,8 @@
           <tr>
             <th class="cell-rank" onclick="toggleSort('rank')">#<span class="arr" id="arr-rank"></span></th>
             <th onclick="toggleSort('name')">参赛者<span class="arr" id="arr-name"></span></th>
-            <th class="text-right" onclick="toggleSort('pnl')">7日已实现PnL<span class="arr" id="arr-pnl">↓</span></th>
+            <th class="text-right" onclick="toggleSort('balance')">当前余额<span class="arr" id="arr-balance"></span></th>
+            <th class="text-right" onclick="toggleSort('pnl')">7日PnL（已实现+未实现-手续费）<span class="arr" id="arr-pnl">↓</span></th>
             <th class="text-right" onclick="toggleSort('volume')">7日交易量<span class="arr" id="arr-volume"></span></th>
             <th class="text-right" onclick="toggleSort('trades')">成交笔数<span class="arr" id="arr-trades"></span></th>
             <th onclick="toggleSort('winrate')">胜率<span class="arr" id="arr-winrate"></span></th>
@@ -431,6 +432,38 @@ async function postInfo(body) {
   return r.json();
 }
 
+async function fetchAllMids() {
+  return postInfo({ type: 'allMids' });
+}
+
+function spotValueUsd(spotState, mids) {
+  const balances = spotState?.balances || [];
+  return balances.reduce((s, b) => {
+    const coin = b.coin;
+    const total = parseFloat(b.total || 0);
+    if (!coin || !isFinite(total) || total === 0) return s;
+    const px = coin === 'USDC' ? 1 : parseFloat(mids?.[coin] || 0);
+    if (!isFinite(px) || px <= 0) return s;
+    return s + total * px;
+  }, 0);
+}
+
+async function fetchAccountSnapshot(address, mids) {
+  const [perp, spot] = await Promise.all([
+    postInfo({ type: 'clearinghouseState', user: address }),
+    postInfo({ type: 'spotClearinghouseState', user: address }),
+  ]);
+  const margin = perp?.marginSummary || {};
+  const perpAccountValue = parseFloat(margin.accountValue || 0);
+  const positions = (perp?.assetPositions || []).map(p => p.position);
+  const unrealizedPnl = positions.reduce((s, p) => s + parseFloat(p?.unrealizedPnl || 0), 0);
+
+  const spotValue = spotValueUsd(spot, mids);
+  const totalBalance = (isFinite(perpAccountValue) ? perpAccountValue : 0) + (isFinite(spotValue) ? spotValue : 0);
+
+  return { perpAccountValue, unrealizedPnl, spotValue, totalBalance };
+}
+
 async function fetch7dStats(address) {
   const now = Date.now();
   const start = now - 7 * 24 * 60 * 60 * 1000;
@@ -461,6 +494,7 @@ async function fetch7dStats(address) {
     address,
     fills:       fills?.length ?? 0,
     realizedPnl,
+    pnl7d: realizedPnl,
     volume,
     fees,
     winTrades,
@@ -497,6 +531,9 @@ async function loadAll(forceRefresh = true) {
   document.getElementById('refreshBtn').disabled = true;
   document.getElementById('statusDot').className = 'dot loading';
 
+  let mids = null;
+  try { mids = await fetchAllMids(); } catch { mids = null; }
+
   const now = Date.now();
   const startMs = now - 7 * 24 * 60 * 60 * 1000;
   const endDate = new Date(now), startDate = new Date(startMs);
@@ -518,11 +555,16 @@ async function loadAll(forceRefresh = true) {
     const batchResults = await Promise.all(
       batch.map(async p => {
         try {
-          const stats = await fetch7dStats(p.address);
-          return { ...stats, name: p.name, error: null };
+          const [stats, snap] = await Promise.all([
+            fetch7dStats(p.address),
+            fetchAccountSnapshot(p.address, mids)
+          ]);
+          const pnl7d = (stats.realizedPnl || 0) + (snap.unrealizedPnl || 0) - (stats.fees || 0);
+          return { ...stats, ...snap, pnl7d, name: p.name, error: null };
         } catch (e) {
           return { address: p.address, name: p.name, error: e.message,
-            realizedPnl: null, volume: 0, fees: 0, fills: 0,
+            realizedPnl: null, pnl7d: null, unrealizedPnl: null, perpAccountValue: null, spotValue: null, totalBalance: null,
+            volume: 0, fees: 0, fills: 0,
             winRate: null, bestTrade: null, worstTrade: null, totalClosedTrades: 0 };
         }
       })
@@ -581,7 +623,7 @@ function toggleSort(key) {
 }
 
 function updateArrows() {
-  ['rank','name','pnl','volume','trades','winrate','bestTrade','fees'].forEach(k => {
+  ['rank','name','balance','pnl','volume','trades','winrate','bestTrade','fees'].forEach(k => {
     const el = document.getElementById('arr-' + k);
     if (el) el.textContent = sortKey === k ? (sortAsc ? '↑' : '↓') : '';
   });
@@ -589,10 +631,22 @@ function updateArrows() {
 
 function sortedData() {
   return [...tableData].sort((a, b) => {
-    let va = a[sortKey === 'pnl' ? 'realizedPnl' : sortKey === 'trades' ? 'fills' : sortKey === 'fees' ? 'fees' : sortKey];
-    let vb = b[sortKey === 'pnl' ? 'realizedPnl' : sortKey === 'trades' ? 'fills' : sortKey === 'fees' ? 'fees' : sortKey];
+    let va = a[
+      sortKey === 'pnl' ? 'pnl7d' :
+      sortKey === 'balance' ? 'totalBalance' :
+      sortKey === 'trades' ? 'fills' :
+      sortKey === 'fees' ? 'fees' :
+      sortKey
+    ];
+    let vb = b[
+      sortKey === 'pnl' ? 'pnl7d' :
+      sortKey === 'balance' ? 'totalBalance' :
+      sortKey === 'trades' ? 'fills' :
+      sortKey === 'fees' ? 'fees' :
+      sortKey
+    ];
     if (sortKey === 'name') { va = a.name || ''; vb = b.name || ''; return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va); }
-    if (sortKey === 'rank') { va = a.realizedPnl; vb = b.realizedPnl; }
+    if (sortKey === 'rank') { va = a.pnl7d; vb = b.pnl7d; }
     va = va ?? -Infinity; vb = vb ?? -Infinity;
     return sortAsc ? va - vb : vb - va;
   });
@@ -603,8 +657,8 @@ function renderAll(participants) {
   updateArrows();
 
   // Stats bar
-  const valid = tableData.filter(d => d.realizedPnl != null);
-  const totalPnl = valid.reduce((s, d) => s + (d.realizedPnl || 0), 0);
+  const valid = tableData.filter(d => d.pnl7d != null);
+  const totalPnl = valid.reduce((s, d) => s + (d.pnl7d || 0), 0);
   const totalVol = tableData.reduce((s, d) => s + (d.volume || 0), 0);
   const bestSingle = Math.max(...tableData.map(d => d.bestTrade ?? -Infinity).filter(isFinite));
   document.getElementById('statCount').textContent    = participants.length;
@@ -622,8 +676,8 @@ function renderAll(participants) {
 
 function renderPodium() {
   const ranked = [...tableData]
-    .filter(d => d.realizedPnl != null)
-    .sort((a, b) => b.realizedPnl - a.realizedPnl)
+    .filter(d => d.pnl7d != null)
+    .sort((a, b) => b.pnl7d - a.pnl7d)
     .slice(0, 3);
 
   if (ranked.length < 1) { document.getElementById('podium').style.display = 'none'; return; }
@@ -636,14 +690,14 @@ function renderPodium() {
   document.getElementById('podium').innerHTML = display.map((d, i) => {
     const realRank = ranked.indexOf(d) + 1;
     const rankCls  = realRank === 1 ? 'rank-gold' : realRank === 2 ? 'rank-silver' : 'rank-bronze';
-    const pnlCls   = d.realizedPnl >= 0 ? 'pos' : 'neg';
+    const pnlCls   = d.pnl7d >= 0 ? 'pos' : 'neg';
     return `
       <div class="podium-item">
         <div class="podium-card">
           <div class="podium-crown">${realCrowns[i]}</div>
           <div class="podium-name ${rankCls}">${escHtml(d.name)}</div>
           <div class="podium-addr">${shortAddr(d.address)}</div>
-          <div class="podium-pnl ${pnlCls}">${fmtUsd(d.realizedPnl, true)}</div>
+          <div class="podium-pnl ${pnlCls}">${fmtUsd(d.pnl7d, true)}</div>
           <div class="podium-vol">${fmtK(d.volume)} 交易量</div>
         </div>
         <div class="podium-block"></div>
@@ -654,16 +708,16 @@ function renderPodium() {
 function renderTable() {
   const sorted = sortedData();
   const pnlRanked = [...tableData]
-    .filter(d => d.realizedPnl != null)
-    .sort((a, b) => b.realizedPnl - a.realizedPnl);
+    .filter(d => d.pnl7d != null)
+    .sort((a, b) => b.pnl7d - a.pnl7d);
 
   const body = document.getElementById('tableBody');
   body.innerHTML = sorted.map(d => {
     if (d.error) {
       return `<tr class="err-row">
         <td>—</td>
-        <td><span class="cell-name">${escHtml(d.name)}</span><span class="cell-addr">${d.address}</span></td>
-        <td colspan="7" style="color:var(--red);font-size:12px">加载失败：${escHtml(d.error)}</td>
+        <td><span class="cell-name">${escHtml(d.name)}</span><span class="cell-addr" title="${d.address}">${shortAddr(d.address)}</span></td>
+        <td colspan="8" style="color:var(--red);font-size:12px">加载失败：${escHtml(d.error)}</td>
       </tr>`;
     }
 
@@ -676,9 +730,10 @@ function renderTable() {
       <td class="cell-rank ${rankCls}">${rank || '—'}</td>
       <td>
         <span class="cell-name">${escHtml(d.name)}</span>
-        <span class="cell-addr">${d.address}</span>
+        <span class="cell-addr" title="${d.address}">${shortAddr(d.address)}</span>
       </td>
-      <td class="text-right">${pnlSpan(d.realizedPnl)}</td>
+      <td class="text-right cell-mono">${isFinite(d.totalBalance) ? fmtK(d.totalBalance) : '—'}</td>
+      <td class="text-right">${pnlSpan(d.pnl7d)}</td>
       <td class="text-right cell-mono">${fmtK(d.volume)}</td>
       <td class="text-right cell-mono">${d.fills}</td>
       <td>

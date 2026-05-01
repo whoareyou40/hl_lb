@@ -420,7 +420,7 @@ function renderList(editingAddr) {
           <span class="p-rank">${i + 1}</span>
           <div class="edit-row" style="flex:1">
             <input id="edit-name-${p.address}" class="input" style="width:180px" value="${escHtml(p.name)}" placeholder="显示名称" />
-            <span class="p-addr">${p.address}</span>
+            <span class="p-addr" title="${p.address}">${shortAddr(p.address)}</span>
           </div>
           <div class="p-actions">
             <button class="btn btn-sm" onclick="saveEdit('${p.address}')">保存</button>
@@ -432,7 +432,7 @@ function renderList(editingAddr) {
       <div class="participant-item">
         <span class="p-rank">${i + 1}</span>
         <span class="p-name">${escHtml(p.name)}</span>
-        <span class="p-addr">${p.address}</span>
+        <span class="p-addr" title="${p.address}">${shortAddr(p.address)}</span>
         <span class="p-date">${fmtDate(p.addedAt)}</span>
         <div class="p-actions">
           <a href="index.html?addr=${p.address}" target="_blank" class="btn btn-sm btn-ghost" title="查看个人统计">统计</a>

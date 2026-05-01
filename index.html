@@ -360,7 +360,6 @@
   </a>
   <a href="leaderboard.html" class="nav-link">排行榜</a>
   <a href="index.html"       class="nav-link active">个人统计</a>
-  <a href="admin.html"       class="nav-link">后台管理</a>
 </nav>
 
 <!-- Search -->
@@ -509,13 +508,15 @@ async function loadData() {
   setState('loading');
 
   try {
-    const [fills, state] = await Promise.all([
+    const [fills, state, spot, mids] = await Promise.all([
       postInfo({ type: 'userFills', user: addr }),
-      postInfo({ type: 'clearinghouseState', user: addr })
+      postInfo({ type: 'clearinghouseState', user: addr }),
+      postInfo({ type: 'spotClearinghouseState', user: addr }),
+      postInfo({ type: 'allMids' }),
     ]);
 
     allFills = fills || [];
-    renderAll(allFills, state);
+    renderAll(allFills, state, spot, mids);
     setState('content');
   } catch (e) {
     showError('查询失败：' + e.message);
@@ -553,7 +554,7 @@ function fmtTime(ms) {
   return d.toLocaleDateString('zh-CN') + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 }
 
-function renderAll(fills, state) {
+function renderAll(fills, state, spot, mids) {
   // ── Compute stats ──
   let totalRealizedPnl = 0, totalFees = 0, totalVolume = 0;
   fills.forEach(f => {
@@ -572,10 +573,25 @@ function renderAll(fills, state) {
   const positions = (state?.assetPositions || []).map(p => p.position);
   const totalUnrealizedPnl = positions.reduce((s, p) => s + parseFloat(p.unrealizedPnl || 0), 0);
 
+  // spot value (approx) = Σ token_total * mid_price (USDC=1)
+  const balances = spot?.balances || [];
+  const spotValue = balances.reduce((s, b) => {
+    const coin = b.coin;
+    const total = parseFloat(b.total || 0);
+    if (!coin || !isFinite(total) || total === 0) return s;
+    const px = coin === 'USDC' ? 1 : parseFloat(mids?.[coin] || 0);
+    if (!isFinite(px) || px <= 0) return s;
+    return s + total * px;
+  }, 0);
+
+  const totalBalance = (isFinite(acctValue) ? acctValue : 0) + (isFinite(spotValue) ? spotValue : 0);
+
   // ── Stats grid ──
   const netPnl = totalRealizedPnl + totalUnrealizedPnl;
   $('statsGrid').innerHTML = [
-    { label: '账户净值', value: fmtUsd(acctValue), sub: `可提取 ${fmtUsd(withdrawable)}` },
+    { label: '合约净值', value: fmtUsd(acctValue), sub: `可提取 ${fmtUsd(withdrawable)}` },
+    { label: '现货估值', value: fmtUsd(spotValue), sub: '按 mid 价格估算' },
+    { label: '总余额', value: fmtUsd(totalBalance), sub: '现货 + 合约净值' },
     { label: '已实现 PnL',   value: `<span class="${totalRealizedPnl>=0?'pos':'neg'}">${totalRealizedPnl>=0?'+':''}${fmtUsd(totalRealizedPnl)}</span>`, sub: `${fills.length} 笔成交` },
     { label: '未实现 PnL', value: `<span class="${totalUnrealizedPnl>=0?'pos':'neg'}">${totalUnrealizedPnl>=0?'+':''}${fmtUsd(totalUnrealizedPnl)}</span>`, sub: `${positions.length} 个持仓` },
     { label: '净 PnL',     value: `<span class="${netPnl>=0?'pos':'neg'}">${netPnl>=0?'+':''}${fmtUsd(netPnl)}</span>`, sub: '已实现 + 未实现' },
