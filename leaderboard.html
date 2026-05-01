@@ -298,7 +298,6 @@
       <div class="sort-tabs">
         <button class="sort-tab active" onclick="setSortMode('pnl', this)">已实现 PnL</button>
         <button class="sort-tab" onclick="setSortMode('volume', this)">交易量</button>
-        <button class="sort-tab" onclick="setSortMode('winrate', this)">胜率</button>
       </div>
       <button class="btn" id="refreshBtn" onclick="loadAll()">刷新</button>
     </div>
@@ -326,10 +325,6 @@
     <div class="stats-bar-item">
       <div class="sbi-label">总交易量</div>
       <div class="sbi-value" id="statTotalVol">—</div>
-    </div>
-    <div class="stats-bar-item">
-      <div class="sbi-label">最高单笔盈利</div>
-      <div class="sbi-value" id="statBestTrade">—</div>
     </div>
   </div>
 
@@ -360,10 +355,7 @@
             <th class="text-right" onclick="toggleSort('pnl')">7日PnL（已实现+未实现-手续费）<span class="arr" id="arr-pnl">↓</span></th>
             <th class="text-right" onclick="toggleSort('volume')">7日交易量<span class="arr" id="arr-volume"></span></th>
             <th class="text-right" onclick="toggleSort('trades')">成交笔数<span class="arr" id="arr-trades"></span></th>
-            <th onclick="toggleSort('winrate')">胜率<span class="arr" id="arr-winrate"></span></th>
-            <th class="text-right" onclick="toggleSort('bestTrade')">最佳单笔<span class="arr" id="arr-bestTrade"></span></th>
             <th class="text-right" onclick="toggleSort('fees')">手续费<span class="arr" id="arr-fees"></span></th>
-            <th></th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -468,7 +460,6 @@ async function fetch7dStats(address) {
   const fills = await postInfo({ type: 'userFillsByTime', user: address, startTime: start, endTime: now });
 
   let realizedPnl = 0, volume = 0, fees = 0;
-  let winTrades = 0, lossTrades = 0, bestTrade = -Infinity, worstTrade = Infinity;
 
   (fills || []).forEach(f => {
     const pnl   = parseFloat(f.closedPnl || 0);
@@ -477,16 +468,7 @@ async function fetch7dStats(address) {
     realizedPnl += pnl;
     volume      += ntl;
     fees        += fee;
-    if (pnl !== 0) {
-      if (pnl > 0) winTrades++;
-      else lossTrades++;
-      if (pnl > bestTrade)  bestTrade  = pnl;
-      if (pnl < worstTrade) worstTrade = pnl;
-    }
   });
-
-  const totalClosedTrades = winTrades + lossTrades;
-  const winRate = totalClosedTrades > 0 ? winTrades / totalClosedTrades : null;
 
   return {
     address,
@@ -495,12 +477,6 @@ async function fetch7dStats(address) {
     pnl7d: realizedPnl,
     volume,
     fees,
-    winTrades,
-    lossTrades,
-    totalClosedTrades,
-    winRate,
-    bestTrade:  bestTrade  === -Infinity ? null : bestTrade,
-    worstTrade: worstTrade ===  Infinity ? null : worstTrade,
   };
 }
 
@@ -563,7 +539,7 @@ async function loadAll(forceRefresh = true) {
           return { address: p.address, name: p.name, error: e.message,
             realizedPnl: null, pnl7d: null, unrealizedPnl: null, perpAccountValue: null, spotValue: null, totalBalance: null,
             volume: 0, fees: 0, fills: 0,
-            winRate: null, bestTrade: null, worstTrade: null, totalClosedTrades: 0 };
+            };
         }
       })
     );
@@ -607,7 +583,6 @@ function setSortMode(mode, btn) {
   sortMode = mode;
   if (mode === 'pnl')     { sortKey = 'pnl';     sortAsc = false; }
   if (mode === 'volume')  { sortKey = 'volume';   sortAsc = false; }
-  if (mode === 'winrate') { sortKey = 'winrate';  sortAsc = false; }
   document.querySelectorAll('.sort-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   if (tableData.length) renderTable();
@@ -621,7 +596,7 @@ function toggleSort(key) {
 }
 
 function updateArrows() {
-  ['rank','name','balance','pnl','volume','trades','winrate','bestTrade','fees'].forEach(k => {
+  ['rank','name','balance','pnl','volume','trades','fees'].forEach(k => {
     const el = document.getElementById('arr-' + k);
     if (el) el.textContent = sortKey === k ? (sortAsc ? '↑' : '↓') : '';
   });
@@ -658,15 +633,11 @@ function renderAll(participants) {
   const valid = tableData.filter(d => d.pnl7d != null);
   const totalPnl = valid.reduce((s, d) => s + (d.pnl7d || 0), 0);
   const totalVol = tableData.reduce((s, d) => s + (d.volume || 0), 0);
-  const bestSingle = Math.max(...tableData.map(d => d.bestTrade ?? -Infinity).filter(isFinite));
   document.getElementById('statCount').textContent    = participants.length;
   const pnlEl = document.getElementById('statTotalPnl');
   pnlEl.textContent  = fmtK(Math.abs(totalPnl));
   pnlEl.className = 'sbi-value ' + (totalPnl >= 0 ? 'pos' : 'neg');
   document.getElementById('statTotalVol').textContent = fmtK(totalVol);
-  const bestEl = document.getElementById('statBestTrade');
-  bestEl.textContent = isFinite(bestSingle) ? fmtK(bestSingle) : '—';
-  bestEl.className = 'sbi-value pos';
 
   renderPodium();
   renderTable();
@@ -715,14 +686,12 @@ function renderTable() {
       return `<tr class="err-row">
         <td>—</td>
         <td><span class="cell-name">${escHtml(d.name)}</span><span class="cell-addr" title="${d.address}">${shortAddr(d.address)}</span></td>
-        <td colspan="8" style="color:var(--red);font-size:12px">加载失败：${escHtml(d.error)}</td>
+        <td colspan="5" style="color:var(--red);font-size:12px">加载失败：${escHtml(d.error)}</td>
       </tr>`;
     }
 
     const rank     = pnlRanked.findIndex(r => r.address === d.address) + 1;
     const rankCls  = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : '';
-    const winPct   = d.winRate != null ? Math.round(d.winRate * 100) : null;
-    const winColor = winPct != null && winPct >= 50 ? 'var(--green)' : 'var(--red)';
 
     return `<tr>
       <td class="cell-rank ${rankCls}">${rank || '—'}</td>
@@ -734,18 +703,7 @@ function renderTable() {
       <td class="text-right">${pnlSpan(d.pnl7d)}</td>
       <td class="text-right cell-mono">${fmtK(d.volume)}</td>
       <td class="text-right cell-mono">${d.fills}</td>
-      <td>
-        ${winPct != null ? `<div class="win-bar">
-          <div class="win-track"><div class="win-fill" style="width:${winPct}%;background:${winColor}"></div></div>
-          <span class="win-pct" style="color:${winColor}">${winPct}%</span>
-        </div>` : '<span style="color:var(--muted)">—</span>'}
-      </td>
-      <td class="text-right">${d.bestTrade != null ? pnlSpan(d.bestTrade) : '<span style="color:var(--muted)">—</span>'}</td>
       <td class="text-right cell-mono neg">${d.fees > 0 ? '-' + fmtUsd(d.fees) : '—'}</td>
-      <td>
-        <a href="index.html?addr=${d.address}" target="_blank"
-           style="color:var(--accent);text-decoration:none;font-size:12px">详情</a>
-      </td>
     </tr>`;
   }).join('');
 }
