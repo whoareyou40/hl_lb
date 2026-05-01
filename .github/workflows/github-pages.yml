@@ -1,0 +1,33 @@
+# 仓库 Settings → Pages → Source 选 “GitHub Actions” 后，推送到 main 即自动发布
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deploy
+        name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

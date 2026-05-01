@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>后台管理 · Hyperliquid 排行榜</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #16191f;
+      --surface2: #1c2028;
+      --border: #252830;
+      --text: #e4e6eb;
+      --muted: #7a7f8e;
+      --accent: #5b6af0;
+      --green: #22c55e;
+      --red: #ef4444;
+      --radius: 8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Nav ── */
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 0 32px;
+      border-bottom: 1px solid var(--border);
+      height: 48px;
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 8px;
+      font-weight: 600; font-size: 15px;
+      text-decoration: none; color: var(--text);
+      margin-right: 24px;
+    }
+    .nav-brand .logo {
+      width: 24px; height: 24px;
+      background: var(--accent);
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: #fff;
+      flex-shrink: 0;
+    }
+    .nav-link {
+      display: flex; align-items: center;
+      height: 48px;
+      padding: 0 14px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s;
+    }
+    .nav-link:hover { color: var(--text); }
+    .nav-link.active { color: var(--text); border-bottom-color: var(--accent); }
+
+    /* ── Layout ── */
+    .page { max-width: 860px; margin: 0 auto; padding: 32px; }
+    .page-header { margin-bottom: 28px; }
+    .page-header h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+    .page-header p { color: var(--muted); font-size: 13px; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* ── Form ── */
+    .form-row {
+      display: flex; gap: 10px; flex-wrap: wrap;
+    }
+    .form-field { display: flex; flex-direction: column; gap: 5px; }
+    .form-field label { font-size: 12px; color: var(--muted); }
+    .input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .input:focus { border-color: var(--accent); }
+    .input::placeholder { color: var(--muted); }
+    .input-addr { width: 340px; font-family: "SF Mono", monospace; }
+    .input-name { width: 180px; }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+      align-self: flex-end;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .btn-ghost:hover { border-color: var(--text); color: var(--text); opacity: 1; }
+    .btn-danger {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--red);
+    }
+    .btn-danger:hover { background: rgba(239,68,68,0.08); opacity: 1; }
+
+    /* ── Participant list ── */
+    .list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .count-badge {
+      display: inline-flex;
+      align-items: center;
+      background: var(--border);
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .participant-list { display: flex; flex-direction: column; gap: 1px; }
+    .participant-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: background 0.1s;
+    }
+    .participant-item:hover { background: var(--surface2); }
+    .p-rank {
+      width: 24px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .p-name {
+      font-weight: 500;
+      min-width: 120px;
+      font-size: 13px;
+    }
+    .p-addr {
+      flex: 1;
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 12px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .p-date {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .p-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+    /* ── Edit inline ── */
+    .edit-row {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+
+    /* ── Import/Export ── */
+    .io-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .io-row input[type=file] { display: none; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 18px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 999;
+    }
+    .toast.show { opacity: 1; }
+    .toast.success { border-color: rgba(34,197,94,0.4); color: var(--green); }
+    .toast.error   { border-color: rgba(239,68,68,0.4);  color: var(--red); }
+
+    /* ── Empty ── */
+    .empty {
+      text-align: center;
+      padding: 40px 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* ── Divider ── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <a href="leaderboard.html" class="nav-brand">
+    <div class="logo">HL</div>
+    Hyperliquid 排行榜
+  </a>
+  <a href="leaderboard.html" class="nav-link">排行榜</a>
+  <a href="index.html"       class="nav-link">个人统计</a>
+  <a href="admin.html"       class="nav-link active">后台管理</a>
+</nav>
+
+<!-- Page -->
+<div class="page">
+  <div class="page-header">
+    <h1>参赛者管理</h1>
+    <p>添加或移除参赛钱包地址，数据保存在本地浏览器中。</p>
+  </div>
+
+  <!-- Add participant -->
+  <div class="card">
+    <div class="card-title">添加参赛者</div>
+    <div class="form-row">
+      <div class="form-field">
+        <label>钱包地址 *</label>
+        <input id="inputAddr" class="input input-addr" type="text" placeholder="0x000…" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="form-field">
+        <label>显示名称（可选）</label>
+        <input id="inputName" class="input input-name" type="text" placeholder="例如：Trader A" />
+      </div>
+      <button class="btn" onclick="addParticipant()">添加</button>
+    </div>
+    <div id="addError" style="color:var(--red);font-size:12px;margin-top:8px;display:none"></div>
+  </div>
+
+  <!-- Participant list -->
+  <div>
+    <div class="list-header">
+      <span style="font-size:13px;font-weight:600">参赛者列表 <span class="count-badge" id="countBadge">0</span></span>
+      <div class="io-row">
+        <button class="btn btn-ghost btn-sm" onclick="exportJSON()">导出 JSON</button>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+          导入 JSON
+          <input type="file" accept=".json,application/json" onchange="importJSON(event)" />
+        </label>
+        <button class="btn btn-ghost btn-sm" id="clearAllBtn" onclick="clearAll()" style="color:var(--red)">清空全部</button>
+      </div>
+    </div>
+    <div id="participantList"></div>
+  </div>
+
+  <hr />
+
+  <!-- Quick nav -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <a href="leaderboard.html" class="btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px">
+      查看排行榜 →
+    </a>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'hl_participants';
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+  catch { return []; }
+}
+function save(list) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function showAddError(msg) {
+  const el = document.getElementById('addError');
+  el.textContent = msg;
+  el.style.display = msg ? '' : 'none';
+}
+
+function shortAddr(addr) {
+  return addr.slice(0, 6) + '…' + addr.slice(-4);
+}
+
+function fmtDate(ts) {
+  return new Date(ts).toLocaleDateString('zh-CN');
+}
+
+function addParticipant() {
+  const addr = document.getElementById('inputAddr').value.trim();
+  const name = document.getElementById('inputName').value.trim();
+
+  if (!addr) { showAddError('请输入钱包地址'); return; }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+    showAddError('地址格式不正确，请输入 0x 开头的 42 位十六进制地址');
+    return;
+  }
+  showAddError('');
+
+  const list = load();
+  if (list.find(p => p.address.toLowerCase() === addr.toLowerCase())) {
+    showAddError('该地址已存在');
+    return;
+  }
+
+  list.push({ address: addr.toLowerCase(), name: name || shortAddr(addr), addedAt: Date.now() });
+  save(list);
+  document.getElementById('inputAddr').value = '';
+  document.getElementById('inputName').value = '';
+  toast('已添加：' + (name || shortAddr(addr)));
+  renderList();
+}
+
+function removeParticipant(address) {
+  const list = load().filter(p => p.address !== address);
+  save(list);
+  toast('已移除', 'success');
+  renderList();
+}
+
+function startEdit(address) {
+  renderList(address);
+}
+
+function saveEdit(address) {
+  const nameEl = document.getElementById('edit-name-' + address);
+  const newName = nameEl ? nameEl.value.trim() : '';
+  const list = load();
+  const p = list.find(p => p.address === address);
+  if (p) p.name = newName || shortAddr(address);
+  save(list);
+  toast('已保存');
+  renderList();
+}
+
+function renderList(editingAddr) {
+  const list = load();
+  document.getElementById('countBadge').textContent = list.length;
+
+  const container = document.getElementById('participantList');
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty">暂无参赛者，请添加钱包地址。</div>';
+    return;
+  }
+
+  container.innerHTML = list.map((p, i) => {
+    if (editingAddr === p.address) {
+      return `
+        <div class="participant-item">
+          <span class="p-rank">${i + 1}</span>
+          <div class="edit-row" style="flex:1">
+            <input id="edit-name-${p.address}" class="input" style="width:180px" value="${escHtml(p.name)}" placeholder="显示名称" />
+            <span class="p-addr">${p.address}</span>
+          </div>
+          <div class="p-actions">
+            <button class="btn btn-sm" onclick="saveEdit('${p.address}')">保存</button>
+            <button class="btn btn-sm btn-ghost" onclick="renderList()">取消</button>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="participant-item">
+        <span class="p-rank">${i + 1}</span>
+        <span class="p-name">${escHtml(p.name)}</span>
+        <span class="p-addr">${p.address}</span>
+        <span class="p-date">${fmtDate(p.addedAt)}</span>
+        <div class="p-actions">
+          <a href="index.html?addr=${p.address}" target="_blank" class="btn btn-sm btn-ghost" title="查看个人统计">统计</a>
+          <button class="btn btn-sm btn-ghost" onclick="startEdit('${p.address}')">编辑</button>
+          <button class="btn btn-sm btn-danger" onclick="removeParticipant('${p.address}')">移除</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function clearAll() {
+  if (!confirm('确认清空所有参赛者吗？')) return;
+  save([]);
+  toast('已清空', 'success');
+  renderList();
+}
+
+function exportJSON() {
+  const list = load();
+  if (!list.length) { toast('列表为空', 'error'); return; }
+  const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'hl-participants.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('已导出');
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) throw new Error('格式不正确');
+      const valid = data.filter(p => p.address && /^0x[0-9a-fA-F]{40}$/.test(p.address));
+      if (!valid.length) throw new Error('未找到有效地址');
+      const existing = load();
+      const existingAddrs = new Set(existing.map(p => p.address.toLowerCase()));
+      let added = 0;
+      valid.forEach(p => {
+        if (!existingAddrs.has(p.address.toLowerCase())) {
+          existing.push({ address: p.address.toLowerCase(), name: p.name || shortAddr(p.address), addedAt: p.addedAt || Date.now() });
+          added++;
+        }
+      });
+      save(existing);
+      toast(`导入成功，新增 ${added} 个地址`);
+      renderList();
+    } catch (err) {
+      toast('导入失败：' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Press Enter to add
+document.getElementById('inputAddr').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('inputName').focus();
+});
+document.getElementById('inputName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addParticipant();
+});
+
+// Init
+renderList();
+</script>
+</body>
+</html>

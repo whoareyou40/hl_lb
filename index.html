@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>个人统计 · Hyperliquid</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #16191f;
+      --border: #252830;
+      --text: #e4e6eb;
+      --muted: #7a7f8e;
+      --accent: #5b6af0;
+      --green: #22c55e;
+      --red: #ef4444;
+      --orange: #f97316;
+      --radius: 8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Nav ── */
+    .nav {
+      display: flex; align-items: center;
+      padding: 0 32px;
+      border-bottom: 1px solid var(--border);
+      height: 48px;
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 8px;
+      font-weight: 600; font-size: 15px;
+      text-decoration: none; color: var(--text);
+      margin-right: 24px;
+    }
+    .nav-brand .logo {
+      width: 24px; height: 24px;
+      background: var(--accent);
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: #fff;
+    }
+    .nav-link {
+      display: flex; align-items: center;
+      height: 48px; padding: 0 14px;
+      color: var(--muted);
+      text-decoration: none; font-size: 13px;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s;
+    }
+    .nav-link:hover { color: var(--text); }
+    .nav-link.active { color: var(--text); border-bottom-color: var(--accent); }
+
+    /* ── Search Bar ── */
+    .search-bar {
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .search-bar input {
+      flex: 1;
+      min-width: 280px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 13px;
+      padding: 9px 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-bar input::placeholder { color: var(--muted); }
+    .search-bar input:focus { border-color: var(--accent); }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      padding: 9px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); opacity: 1; }
+
+    /* ── Main ── */
+    .main {
+      padding: 24px 32px;
+      max-width: 1400px;
+    }
+
+    /* ── Empty / Loading states ── */
+    .state-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 80px 0;
+      color: var(--muted);
+    }
+    .state-box .icon { font-size: 40px; opacity: 0.4; }
+    .state-box p { font-size: 15px; }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Stats grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+    .stat-label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .stat-value {
+      font-size: 22px;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    .stat-sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+
+    /* ── Sections ── */
+    .section { margin-bottom: 28px; }
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── Chart row ── */
+    .chart-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 900px) { .chart-row { grid-template-columns: 1fr; } }
+    .chart-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+    .chart-box-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .chart-wrap { position: relative; height: 220px; }
+
+    /* ── Coin breakdown ── */
+    .coin-table {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .coin-table table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .coin-table th {
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .coin-table th:hover { color: var(--text); }
+    .coin-table th .sort-arrow { margin-left: 4px; opacity: 0.5; }
+    .coin-table td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .coin-table tr:last-child td { border-bottom: none; }
+    .coin-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Positions table ── */
+    .positions-table { overflow: hidden; border-radius: var(--radius); border: 1px solid var(--border); }
+    .positions-table table { width: 100%; border-collapse: collapse; }
+    .positions-table th {
+      padding: 9px 14px;
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      white-space: nowrap;
+    }
+    .positions-table td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .positions-table tr:last-child td { border-bottom: none; }
+    .positions-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Fill history ── */
+    .fills-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .fills-filter {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-btn.active, .filter-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .fills-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: auto;
+      max-height: 420px;
+    }
+    .fills-wrap table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 800px;
+    }
+    .fills-wrap th {
+      position: sticky; top: 0;
+      padding: 9px 14px;
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      white-space: nowrap;
+      z-index: 2;
+    }
+    .fills-wrap td {
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .fills-wrap tr:last-child td { border-bottom: none; }
+    .fills-wrap tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .badge-buy { background: rgba(34,197,94,0.12); color: var(--green); }
+    .badge-sell { background: rgba(239,68,68,0.12); color: var(--red); }
+    .badge-long { background: rgba(34,197,94,0.12); color: var(--green); }
+    .badge-short { background: rgba(239,68,68,0.12); color: var(--red); }
+
+    /* ── Error toast ── */
+    .error-bar {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: #fca5a5;
+      border-radius: var(--radius);
+      padding: 10px 16px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .error-bar.show { display: block; }
+
+    /* ── Misc ── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0 0 24px; }
+    .text-right { text-align: right; }
+    .font-mono { font-family: "SF Mono", "Fira Code", monospace; }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <a href="leaderboard.html" class="nav-brand">
+    <div class="logo">HL</div>
+    Hyperliquid 排行榜
+  </a>
+  <a href="leaderboard.html" class="nav-link">排行榜</a>
+  <a href="index.html"       class="nav-link active">个人统计</a>
+  <a href="admin.html"       class="nav-link">后台管理</a>
+</nav>
+
+<!-- Search -->
+<div class="search-bar">
+  <input id="addrInput" type="text" placeholder="0x 钱包地址（42位十六进制格式）" autocomplete="off" spellcheck="false" />
+  <button class="btn" id="searchBtn" onclick="loadData()">查询</button>
+  <button class="btn btn-outline" onclick="loadDemo()">演示地址</button>
+</div>
+
+<!-- Main -->
+<div class="main" id="mainArea">
+  <!-- Empty state -->
+  <div class="state-box" id="emptyState">
+    <div class="icon">&#128200;</div>
+    <p>输入钱包地址开始查询</p>
+  </div>
+
+  <!-- Loading state -->
+  <div class="state-box" id="loadingState" style="display:none">
+    <div class="spinner"></div>
+    <p>正在加载数据…</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-bar" id="errorBar"></div>
+
+  <!-- Content -->
+  <div id="content" style="display:none">
+
+    <!-- Summary stats -->
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <hr class="divider" />
+
+    <!-- Charts -->
+    <div class="chart-row">
+      <div class="chart-box">
+        <div class="chart-box-title">累计已实现 PnL（最近 2000 笔成交）</div>
+        <div class="chart-wrap"><canvas id="pnlChart"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-box-title">各币种 PnL 分布</div>
+        <div class="chart-wrap"><canvas id="coinChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Volume chart -->
+    <div class="chart-box" style="margin-bottom:28px">
+      <div class="chart-box-title">每日交易量（USD，最近 30 天）</div>
+      <div class="chart-wrap"><canvas id="volChart"></canvas></div>
+    </div>
+
+    <!-- Positions -->
+    <div class="section" id="posSection" style="display:none">
+      <div class="section-title">当前持仓</div>
+      <div class="positions-table" id="posTable"></div>
+    </div>
+
+    <!-- Coin breakdown -->
+    <div class="section">
+      <div class="section-title">币种统计</div>
+      <div class="coin-table" id="coinBreakdown"></div>
+    </div>
+
+    <!-- Fill history -->
+    <div class="section">
+      <div class="fills-header">
+        <div class="section-title" style="margin:0">成交记录</div>
+        <div class="fills-filter">
+          <button class="filter-btn active" onclick="filterFills('all', this)">全部</button>
+          <button class="filter-btn" onclick="filterFills('B', this)">买入</button>
+          <button class="filter-btn" onclick="filterFills('A', this)">卖出</button>
+          <button class="filter-btn" onclick="filterFills('pnl', this)">有盈亏</button>
+        </div>
+      </div>
+      <div class="fills-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>币种</th>
+              <th>方向</th>
+              <th>操作</th>
+              <th class="text-right">成交价</th>
+              <th class="text-right">数量</th>
+              <th class="text-right">名义价值</th>
+              <th class="text-right">已实现PnL</th>
+              <th class="text-right">手续费</th>
+            </tr>
+          </thead>
+          <tbody id="fillsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div>
+
+<script>
+const API = 'https://api.hyperliquid.xyz/info';
+const DEMO = '0x31ca8395cf837de08b24da3f660e77761dfb974b';
+
+let allFills = [];
+let pnlChartInst, coinChartInst, volChartInst;
+
+function $(id) { return document.getElementById(id); }
+
+function setState(state) {
+  $('emptyState').style.display   = state === 'empty'   ? '' : 'none';
+  $('loadingState').style.display = state === 'loading' ? '' : 'none';
+  $('content').style.display      = state === 'content' ? '' : 'none';
+}
+
+function showError(msg) {
+  const bar = $('errorBar');
+  bar.textContent = msg;
+  bar.classList.add('show');
+  setTimeout(() => bar.classList.remove('show'), 6000);
+}
+
+function loadDemo() {
+  $('addrInput').value = DEMO;
+  loadData();
+}
+
+async function postInfo(body) {
+  const r = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function loadData() {
+  const addr = $('addrInput').value.trim();
+  if (!addr) { showError('请输入钱包地址'); return; }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+    showError('地址格式不正确，请输入 0x 开头的 42 位十六进制地址');
+    return;
+  }
+
+  $('errorBar').classList.remove('show');
+  $('searchBtn').disabled = true;
+  setState('loading');
+
+  try {
+    const [fills, state] = await Promise.all([
+      postInfo({ type: 'userFills', user: addr }),
+      postInfo({ type: 'clearinghouseState', user: addr })
+    ]);
+
+    allFills = fills || [];
+    renderAll(allFills, state);
+    setState('content');
+  } catch (e) {
+    showError('查询失败：' + e.message);
+    setState('empty');
+  } finally {
+    $('searchBtn').disabled = false;
+  }
+}
+
+// ── Press Enter to search ──
+$('addrInput').addEventListener('keydown', e => { if (e.key === 'Enter') loadData(); });
+
+// ── Auto-load from URL param ?addr= ──
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const addr = params.get('addr');
+  if (addr && /^0x[0-9a-fA-F]{40}$/.test(addr)) {
+    $('addrInput').value = addr;
+    loadData();
+  }
+})();
+
+function fmt(n, decimals = 2) {
+  if (n == null || isNaN(n)) return '—';
+  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+function fmtUsd(n) { return '$' + fmt(n); }
+function fmtPnl(n) {
+  if (n == null || isNaN(n)) return '—';
+  const cls = n >= 0 ? 'pos' : 'neg';
+  return `<span class="${cls}">${n >= 0 ? '+' : ''}${fmtUsd(n)}</span>`;
+}
+function fmtTime(ms) {
+  const d = new Date(ms);
+  return d.toLocaleDateString('zh-CN') + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function renderAll(fills, state) {
+  // ── Compute stats ──
+  let totalRealizedPnl = 0, totalFees = 0, totalVolume = 0;
+  fills.forEach(f => {
+    totalRealizedPnl += parseFloat(f.closedPnl || 0);
+    totalFees        += parseFloat(f.fee       || 0);
+    totalVolume      += parseFloat(f.px || 0) * parseFloat(f.sz || 0);
+  });
+
+  const margin = state?.marginSummary || {};
+  const acctValue     = parseFloat(margin.accountValue     || 0);
+  const totalNtl      = parseFloat(margin.totalNtlPos      || 0);
+  const marginUsed    = parseFloat(margin.totalMarginUsed  || 0);
+  const withdrawable  = parseFloat(state?.withdrawable     || 0);
+
+  // unrealized PnL across all positions
+  const positions = (state?.assetPositions || []).map(p => p.position);
+  const totalUnrealizedPnl = positions.reduce((s, p) => s + parseFloat(p.unrealizedPnl || 0), 0);
+
+  // ── Stats grid ──
+  const netPnl = totalRealizedPnl + totalUnrealizedPnl;
+  $('statsGrid').innerHTML = [
+    { label: '账户净值', value: fmtUsd(acctValue), sub: `可提取 ${fmtUsd(withdrawable)}` },
+    { label: '已实现 PnL',   value: `<span class="${totalRealizedPnl>=0?'pos':'neg'}">${totalRealizedPnl>=0?'+':''}${fmtUsd(totalRealizedPnl)}</span>`, sub: `${fills.length} 笔成交` },
+    { label: '未实现 PnL', value: `<span class="${totalUnrealizedPnl>=0?'pos':'neg'}">${totalUnrealizedPnl>=0?'+':''}${fmtUsd(totalUnrealizedPnl)}</span>`, sub: `${positions.length} 个持仓` },
+    { label: '净 PnL',     value: `<span class="${netPnl>=0?'pos':'neg'}">${netPnl>=0?'+':''}${fmtUsd(netPnl)}</span>`, sub: '已实现 + 未实现' },
+    { label: '总交易量', value: fmtUsd(totalVolume), sub: '名义价值（USDC）' },
+    { label: '手续费合计', value: `<span class="neg">-${fmtUsd(totalFees)}</span>`, sub: '已支付费用' },
+    { label: '总名义仓位', value: fmtUsd(totalNtl), sub: `保证金占用 ${fmtUsd(marginUsed)}` },
+  ].map(s => `
+    <div class="stat-card">
+      <div class="stat-label">${s.label}</div>
+      <div class="stat-value">${s.value}</div>
+      ${s.sub ? `<div class="stat-sub">${s.sub}</div>` : ''}
+    </div>
+  `).join('');
+
+  // ── Positions ──
+  if (positions.length > 0) {
+    $('posSection').style.display = '';
+    $('posTable').innerHTML = `
+      <table>
+        <thead><tr>
+          <th>币种</th><th>方向</th><th class="text-right">仓位大小</th>
+          <th class="text-right">开仓价</th><th class="text-right">标记价</th>
+          <th class="text-right">仓位价值</th><th class="text-right">未实现PnL</th>
+          <th class="text-right">ROE</th><th class="text-right">保证金</th><th>杠杆</th>
+        </tr></thead>
+        <tbody>
+          ${positions.map(p => {
+            const upnl = parseFloat(p.unrealizedPnl || 0);
+            const roe  = parseFloat(p.returnOnEquity || 0) * 100;
+            const sz   = parseFloat(p.szi || 0);
+            return `<tr>
+              <td><strong>${p.coin}</strong></td>
+              <td><span class="badge ${sz > 0 ? 'badge-long' : 'badge-short'}">${sz > 0 ? '多' : '空'}</span></td>
+              <td class="text-right font-mono">${fmt(Math.abs(sz), 4)}</td>
+              <td class="text-right font-mono">${fmtUsd(parseFloat(p.entryPx || 0))}</td>
+              <td class="text-right font-mono">—</td>
+              <td class="text-right font-mono">${fmtUsd(parseFloat(p.positionValue || 0))}</td>
+              <td class="text-right">${fmtPnl(upnl)}</td>
+              <td class="text-right ${roe >= 0 ? 'pos' : 'neg'}">${roe >= 0 ? '+' : ''}${fmt(roe)}%</td>
+              <td class="text-right font-mono">${fmtUsd(parseFloat(p.marginUsed || 0))}</td>
+              <td><span class="badge badge-${sz>0?'long':'short'}">${p.leverage?.value || '—'}x</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  } else {
+    $('posSection').style.display = 'none';
+  }
+
+  // ── Coin breakdown ──
+  const coinMap = {};
+  fills.forEach(f => {
+    const c = f.coin;
+    if (!coinMap[c]) coinMap[c] = { coin: c, trades: 0, volume: 0, realizedPnl: 0, fees: 0, buys: 0, sells: 0 };
+    const notional = parseFloat(f.px || 0) * parseFloat(f.sz || 0);
+    coinMap[c].trades++;
+    coinMap[c].volume      += notional;
+    coinMap[c].realizedPnl += parseFloat(f.closedPnl || 0);
+    coinMap[c].fees        += parseFloat(f.fee || 0);
+    if (f.side === 'B') coinMap[c].buys++; else coinMap[c].sells++;
+  });
+  const coins = Object.values(coinMap).sort((a, b) => b.volume - a.volume);
+  renderCoinTable(coins);
+
+  // ── Charts ──
+  renderPnlChart(fills);
+  renderCoinChart(coins);
+  renderVolChart(fills);
+
+  // ── Fills table ──
+  renderFills(fills, 'all');
+}
+
+let coinSortKey = 'volume', coinSortAsc = false;
+function renderCoinTable(coins, sortKey, asc) {
+  if (sortKey !== undefined) { coinSortKey = sortKey; coinSortAsc = asc; }
+  const sorted = [...coins].sort((a, b) => {
+    const v = coinSortAsc ? a[coinSortKey] - b[coinSortKey] : b[coinSortKey] - a[coinSortKey];
+    return v;
+  });
+
+  const arrow = dir => `<span class="sort-arrow">${dir === coinSortKey ? (coinSortAsc ? '↑' : '↓') : ''}</span>`;
+  const hdr = (k, label) => `<th onclick="sortCoins('${k}')">${label}${arrow(k)}</th>`;
+
+  $('coinBreakdown').innerHTML = `
+    <table>
+      <thead><tr>
+        ${hdr('coin','币种')}${hdr('trades','笔数')}${hdr('volume','交易量(USD)')}
+        ${hdr('realizedPnl','已实现PnL')}${hdr('fees','手续费')}${hdr('buys','买入')}${hdr('sells','卖出')}
+      </tr></thead>
+      <tbody>
+        ${sorted.map(c => `<tr>
+          <td><strong>${c.coin}</strong></td>
+          <td>${c.trades}</td>
+          <td class="font-mono">${fmtUsd(c.volume)}</td>
+          <td class="font-mono">${fmtPnl(c.realizedPnl)}</td>
+          <td class="font-mono neg">-${fmtUsd(c.fees)}</td>
+          <td class="pos">${c.buys}</td>
+          <td class="neg">${c.sells}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+window._coinsCache = [];
+function sortCoins(key) {
+  if (coinSortKey === key) coinSortAsc = !coinSortAsc;
+  else { coinSortKey = key; coinSortAsc = false; }
+  const coinMap = {};
+  allFills.forEach(f => {
+    const c = f.coin;
+    if (!coinMap[c]) coinMap[c] = { coin: c, trades: 0, volume: 0, realizedPnl: 0, fees: 0, buys: 0, sells: 0 };
+    const notional = parseFloat(f.px || 0) * parseFloat(f.sz || 0);
+    coinMap[c].trades++;
+    coinMap[c].volume      += notional;
+    coinMap[c].realizedPnl += parseFloat(f.closedPnl || 0);
+    coinMap[c].fees        += parseFloat(f.fee || 0);
+    if (f.side === 'B') coinMap[c].buys++; else coinMap[c].sells++;
+  });
+  renderCoinTable(Object.values(coinMap), coinSortKey, coinSortAsc);
+}
+
+function filterFills(mode, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderFills(allFills, mode);
+}
+
+function renderFills(fills, mode) {
+  let data = fills;
+  if (mode === 'B')   data = fills.filter(f => f.side === 'B');
+  if (mode === 'A')   data = fills.filter(f => f.side === 'A');
+  if (mode === 'pnl') data = fills.filter(f => parseFloat(f.closedPnl || 0) !== 0);
+
+  const rows = data.slice(0, 500).map(f => {
+    const pnl     = parseFloat(f.closedPnl || 0);
+    const fee     = parseFloat(f.fee || 0);
+    const notional = parseFloat(f.px || 0) * parseFloat(f.sz || 0);
+    const isBuy   = f.side === 'B';
+    return `<tr>
+      <td>${fmtTime(f.time)}</td>
+      <td><strong>${f.coin}</strong></td>
+      <td><span class="badge ${isBuy ? 'badge-buy' : 'badge-sell'}">${isBuy ? '买' : '卖'}</span></td>
+      <td style="color:var(--muted);font-size:11px">${f.dir || ''}</td>
+      <td class="text-right font-mono">${fmtUsd(parseFloat(f.px || 0))}</td>
+      <td class="text-right font-mono">${parseFloat(f.sz || 0).toFixed(4)}</td>
+      <td class="text-right font-mono">${fmtUsd(notional)}</td>
+      <td class="text-right font-mono">${fmtPnl(pnl)}</td>
+      <td class="text-right font-mono neg">-${fmtUsd(fee)}</td>
+    </tr>`;
+  });
+
+  $('fillsBody').innerHTML = rows.join('') || '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">无记录</td></tr>';
+}
+
+// ── Charts ──
+
+function destroyChart(inst) { if (inst) inst.destroy(); }
+
+const chartDefaults = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false }, tooltip: { callbacks: {} } },
+};
+
+function renderPnlChart(fills) {
+  destroyChart(pnlChartInst);
+  // cumulative PnL over time
+  let cum = 0;
+  const points = fills.map(f => {
+    cum += parseFloat(f.closedPnl || 0);
+    return { x: f.time, y: cum };
+  });
+
+  const labels = points.map(p => fmtTime(p.x));
+  const values = points.map(p => p.y);
+  const last = values[values.length - 1] || 0;
+  const color = last >= 0 ? '#22c55e' : '#ef4444';
+
+  pnlChartInst = new Chart($('pnlChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: color,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: true,
+        backgroundColor: last >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+        tension: 0.2,
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      scales: {
+        x: { display: false },
+        y: {
+          grid: { color: '#252830' },
+          ticks: { color: '#7a7f8e', callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(0)) }
+        }
+      },
+      plugins: {
+        ...chartDefaults.plugins,
+        tooltip: {
+          callbacks: {
+            label: ctx => ' PnL: $' + ctx.parsed.y.toFixed(2),
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderCoinChart(coins) {
+  destroyChart(coinChartInst);
+  const top = coins.slice(0, 8);
+  const palette = ['#5b6af0','#22c55e','#ef4444','#f97316','#a78bfa','#38bdf8','#fb7185','#fbbf24'];
+
+  coinChartInst = new Chart($('coinChart'), {
+    type: 'doughnut',
+    data: {
+      labels: top.map(c => c.coin),
+      datasets: [{
+        data: top.map(c => Math.abs(c.volume)),
+        backgroundColor: palette,
+        borderColor: '#16191f',
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'right',
+          labels: { color: '#7a7f8e', boxWidth: 10, font: { size: 11 } }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' ' + ctx.label + ': $' + fmt(ctx.parsed)
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderVolChart(fills) {
+  destroyChart(volChartInst);
+  // group by day
+  const dayMap = {};
+  fills.forEach(f => {
+    const d = new Date(f.time);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    dayMap[key] = (dayMap[key] || 0) + parseFloat(f.px || 0) * parseFloat(f.sz || 0);
+  });
+  const days = Object.entries(dayMap).sort((a, b) => a[0] < b[0] ? -1 : 1).slice(-30);
+
+  volChartInst = new Chart($('volChart'), {
+    type: 'bar',
+    data: {
+      labels: days.map(d => d[0]),
+      datasets: [{
+        data: days.map(d => d[1]),
+        backgroundColor: 'rgba(91,106,240,0.7)',
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#7a7f8e', maxTicksLimit: 10, font: { size: 11 } } },
+        y: { grid: { color: '#252830' }, ticks: { color: '#7a7f8e', callback: v => '$' + (v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'k' : v) } }
+      },
+      plugins: {
+        ...chartDefaults.plugins,
+        tooltip: { callbacks: { label: ctx => ' 交易量: $' + fmt(ctx.parsed.y) } }
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+.git
+.github
+*.md
+.DS_Store
+vercel.json
+netlify.toml
+Dockerfile
+.dockerignore
+.nojekyll

@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>7日排行榜 · Hyperliquid</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #16191f;
+      --surface2: #1c2028;
+      --border: #252830;
+      --text: #e4e6eb;
+      --muted: #7a7f8e;
+      --accent: #5b6af0;
+      --green: #22c55e;
+      --red: #ef4444;
+      --gold: #f59e0b;
+      --silver: #94a3b8;
+      --bronze: #b45309;
+      --radius: 8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Nav ── */
+    .nav {
+      display: flex; align-items: center;
+      padding: 0 32px;
+      border-bottom: 1px solid var(--border);
+      height: 48px;
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 8px;
+      font-weight: 600; font-size: 15px;
+      text-decoration: none; color: var(--text);
+      margin-right: 24px;
+    }
+    .nav-brand .logo {
+      width: 24px; height: 24px;
+      background: var(--accent);
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: #fff;
+    }
+    .nav-link {
+      display: flex; align-items: center;
+      height: 48px; padding: 0 14px;
+      color: var(--muted);
+      text-decoration: none; font-size: 13px;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s;
+    }
+    .nav-link:hover { color: var(--text); }
+    .nav-link.active { color: var(--text); border-bottom-color: var(--accent); }
+    .nav-spacer { flex: 1; }
+    .nav-right { display: flex; align-items: center; gap: 10px; }
+
+    /* ── Layout ── */
+    .page { max-width: 1200px; margin: 0 auto; padding: 28px 32px; }
+
+    /* ── Page header ── */
+    .page-top {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      flex-wrap: wrap; gap: 16px;
+      margin-bottom: 24px;
+    }
+    .page-top h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+    .page-top p { color: var(--muted); font-size: 13px; }
+    .top-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    /* ── Buttons ── */
+    .btn {
+      background: var(--accent);
+      color: #fff; border: none;
+      border-radius: 6px; padding: 8px 18px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: opacity 0.15s;
+      white-space: nowrap; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .btn-ghost:hover { border-color: var(--text); color: var(--text); opacity: 1; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* ── Sort tabs ── */
+    .sort-tabs {
+      display: flex; gap: 2px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 3px;
+    }
+    .sort-tab {
+      padding: 5px 14px;
+      border-radius: 5px;
+      font-size: 12px; font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      border: none; background: transparent;
+      white-space: nowrap;
+    }
+    .sort-tab:hover { color: var(--text); }
+    .sort-tab.active { background: var(--accent); color: #fff; }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: flex; gap: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .stats-bar-item {
+      flex: 1; padding: 14px 18px;
+      border-right: 1px solid var(--border);
+    }
+    .stats-bar-item:last-child { border-right: none; }
+    .sbi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 4px; }
+    .sbi-value { font-size: 18px; font-weight: 600; }
+    @media (max-width: 700px) { .stats-bar { flex-wrap: wrap; } .stats-bar-item { flex: 1 1 calc(50% - 1px); } }
+
+    /* ── Progress overlay ── */
+    .progress-bar-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .progress-bar-wrap.show { display: block; }
+    .pb-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .pb-track { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .pb-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+
+    /* ── Podium ── */
+    .podium {
+      display: flex; align-items: flex-end; justify-content: center;
+      gap: 12px; margin-bottom: 28px;
+    }
+    .podium-item {
+      display: flex; flex-direction: column; align-items: center;
+      flex: 1; max-width: 240px;
+    }
+    .podium-card {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 14px 14px;
+      text-align: center;
+    }
+    .podium-crown { font-size: 22px; margin-bottom: 4px; line-height: 1; }
+    .podium-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .podium-addr { font-size: 11px; color: var(--muted); font-family: monospace; margin-bottom: 8px; }
+    .podium-pnl { font-size: 20px; font-weight: 700; }
+    .podium-vol { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .podium-block { height: 6px; background: var(--border); border-radius: 3px 3px 0 0; width: 60%; margin-top: 8px; }
+    .podium-item:nth-child(1) .podium-block { background: var(--silver); height: 10px; }
+    .podium-item:nth-child(2) .podium-block { background: var(--gold); height: 18px; }
+    .podium-item:nth-child(3) .podium-block { background: var(--bronze); height: 6px; }
+    .podium-item:nth-child(2) .podium-card { border-color: rgba(245,158,11,0.3); }
+    .rank-gold   { color: var(--gold); }
+    .rank-silver { color: var(--silver); }
+    .rank-bronze { color: var(--bronze); }
+    @media (max-width: 600px) { .podium { flex-direction: column; align-items: center; } .podium-item { max-width: 100%; width: 100%; } .podium-block { display: none; } }
+
+    /* ── Table ── */
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: auto;
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 820px; }
+    thead th {
+      padding: 10px 14px;
+      text-align: left; font-size: 11px;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      white-space: nowrap;
+      position: sticky; top: 0; z-index: 2;
+      cursor: pointer; user-select: none;
+    }
+    thead th:hover { color: var(--text); }
+    thead th .arr { margin-left: 3px; opacity: 0.5; font-size: 10px; }
+    tbody td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      vertical-align: middle;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,0.015); }
+
+    .cell-rank { width: 52px; font-weight: 600; font-size: 15px; }
+    .rank-1 { color: var(--gold); }
+    .rank-2 { color: var(--silver); }
+    .rank-3 { color: var(--bronze); }
+    .cell-name { font-weight: 500; }
+    .cell-addr { font-family: "SF Mono", monospace; font-size: 11px; color: var(--muted); display: block; }
+    .cell-mono { font-family: "SF Mono", monospace; font-variant-numeric: tabular-nums; }
+    .text-right { text-align: right; }
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+
+    .win-bar {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .win-track { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; min-width: 40px; }
+    .win-fill { height: 100%; background: var(--green); border-radius: 2px; }
+    .win-pct { font-size: 12px; width: 36px; text-align: right; }
+
+    /* ── Loading / empty ── */
+    .state-box {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 12px; padding: 80px 0; color: var(--muted);
+    }
+    .state-box p { font-size: 14px; }
+    .state-box a { color: var(--accent); text-decoration: none; }
+    .state-box a:hover { text-decoration: underline; }
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 2px 8px; border-radius: 4px;
+      font-size: 11px; font-weight: 500;
+    }
+    .badge-new { background: rgba(91,106,240,0.12); color: var(--accent); }
+
+    /* ── Error ── */
+    .err-row td { color: var(--red); font-size: 12px; }
+
+    /* ── Last updated ── */
+    .last-updated { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .dot.loading { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <a href="leaderboard.html" class="nav-brand">
+    <div class="logo">HL</div>
+    Hyperliquid 排行榜
+  </a>
+  <a href="leaderboard.html" class="nav-link active">排行榜</a>
+  <a href="index.html"       class="nav-link">个人统计</a>
+  <a href="admin.html"       class="nav-link">后台管理</a>
+  <div class="nav-spacer"></div>
+  <div class="nav-right">
+    <div class="last-updated" id="lastUpdated">
+      <span class="dot" id="statusDot"></span>
+      <span id="lastUpdatedText">—</span>
+    </div>
+  </div>
+</nav>
+
+<!-- Page -->
+<div class="page">
+  <!-- Header -->
+  <div class="page-top">
+    <div>
+      <h1>7 日交易排行榜</h1>
+      <p id="periodLabel">统计区间：加载中…</p>
+    </div>
+    <div class="top-actions">
+      <!-- Sort tabs -->
+      <div class="sort-tabs">
+        <button class="sort-tab active" onclick="setSortMode('pnl', this)">已实现 PnL</button>
+        <button class="sort-tab" onclick="setSortMode('volume', this)">交易量</button>
+        <button class="sort-tab" onclick="setSortMode('winrate', this)">胜率</button>
+      </div>
+      <button class="btn" id="refreshBtn" onclick="loadAll()">刷新</button>
+      <a href="admin.html" class="btn btn-ghost btn-sm">管理参赛者</a>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-bar-wrap" id="progressWrap">
+    <div class="pb-label">
+      <span id="progressLabel">正在加载数据…</span>
+      <span id="progressCount">0 / 0</span>
+    </div>
+    <div class="pb-track"><div class="pb-fill" id="pbFill" style="width:0%"></div></div>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="stats-bar" id="statsBar" style="display:none">
+    <div class="stats-bar-item">
+      <div class="sbi-label">参赛人数</div>
+      <div class="sbi-value" id="statCount">—</div>
+    </div>
+    <div class="stats-bar-item">
+      <div class="sbi-label">总已实现 PnL</div>
+      <div class="sbi-value" id="statTotalPnl">—</div>
+    </div>
+    <div class="stats-bar-item">
+      <div class="sbi-label">总交易量</div>
+      <div class="sbi-value" id="statTotalVol">—</div>
+    </div>
+    <div class="stats-bar-item">
+      <div class="sbi-label">最高单笔盈利</div>
+      <div class="sbi-value" id="statBestTrade">—</div>
+    </div>
+  </div>
+
+  <!-- State: empty / loading / content -->
+  <div class="state-box" id="emptyState">
+    <div style="font-size:36px;opacity:0.3">&#127942;</div>
+    <p>暂无参赛者数据</p>
+    <p style="font-size:13px">请先前往 <a href="admin.html">后台管理</a> 添加参赛钱包地址。</p>
+  </div>
+
+  <div class="state-box" id="loadingState" style="display:none">
+    <div class="spinner"></div>
+    <p>正在获取链上数据…</p>
+  </div>
+
+  <!-- Content -->
+  <div id="contentArea" style="display:none">
+    <!-- Podium -->
+    <div class="podium" id="podium"></div>
+    <!-- Full table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="cell-rank" onclick="toggleSort('rank')">#<span class="arr" id="arr-rank"></span></th>
+            <th onclick="toggleSort('name')">参赛者<span class="arr" id="arr-name"></span></th>
+            <th class="text-right" onclick="toggleSort('pnl')">7日已实现PnL<span class="arr" id="arr-pnl">↓</span></th>
+            <th class="text-right" onclick="toggleSort('volume')">7日交易量<span class="arr" id="arr-volume"></span></th>
+            <th class="text-right" onclick="toggleSort('trades')">成交笔数<span class="arr" id="arr-trades"></span></th>
+            <th onclick="toggleSort('winrate')">胜率<span class="arr" id="arr-winrate"></span></th>
+            <th class="text-right" onclick="toggleSort('bestTrade')">最佳单笔<span class="arr" id="arr-bestTrade"></span></th>
+            <th class="text-right" onclick="toggleSort('fees')">手续费<span class="arr" id="arr-fees"></span></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = 'https://api.hyperliquid.xyz/info';
+const STORAGE_KEY = 'hl_participants';
+const CACHE_KEY   = 'hl_lb_cache';
+const CACHE_TTL   = 5 * 60 * 1000; // 5 minutes
+
+let sortKey = 'pnl', sortAsc = false, sortMode = 'pnl';
+let tableData = [];
+
+/* ────────────────── utils ────────────────── */
+function loadParticipants() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function fmt(n, d = 2) {
+  if (n == null || isNaN(n)) return '—';
+  return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function fmtUsd(n, plus = false) {
+  if (n == null || isNaN(n)) return '—';
+  const s = '$' + fmt(Math.abs(n));
+  if (n < 0) return '-' + s;
+  return plus && n > 0 ? '+' + s : s;
+}
+function fmtK(n) {
+  if (n >= 1e9) return '$' + fmt(n / 1e9, 2) + 'B';
+  if (n >= 1e6) return '$' + fmt(n / 1e6, 2) + 'M';
+  if (n >= 1e3) return '$' + fmt(n / 1e3, 1) + 'K';
+  return '$' + fmt(n);
+}
+function pnlSpan(n) {
+  const cls = n >= 0 ? 'pos' : 'neg';
+  return `<span class="${cls} cell-mono">${fmtUsd(n, true)}</span>`;
+}
+function shortAddr(a) { return a.slice(0, 6) + '…' + a.slice(-4); }
+
+/* ────────────────── API ────────────────── */
+async function postInfo(body) {
+  const r = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function fetch7dStats(address) {
+  const now = Date.now();
+  const start = now - 7 * 24 * 60 * 60 * 1000;
+  const fills = await postInfo({ type: 'userFillsByTime', user: address, startTime: start, endTime: now });
+
+  let realizedPnl = 0, volume = 0, fees = 0;
+  let winTrades = 0, lossTrades = 0, bestTrade = -Infinity, worstTrade = Infinity;
+
+  (fills || []).forEach(f => {
+    const pnl   = parseFloat(f.closedPnl || 0);
+    const fee   = parseFloat(f.fee       || 0);
+    const ntl   = parseFloat(f.px || 0) * parseFloat(f.sz || 0);
+    realizedPnl += pnl;
+    volume      += ntl;
+    fees        += fee;
+    if (pnl !== 0) {
+      if (pnl > 0) winTrades++;
+      else lossTrades++;
+      if (pnl > bestTrade)  bestTrade  = pnl;
+      if (pnl < worstTrade) worstTrade = pnl;
+    }
+  });
+
+  const totalClosedTrades = winTrades + lossTrades;
+  const winRate = totalClosedTrades > 0 ? winTrades / totalClosedTrades : null;
+
+  return {
+    address,
+    fills:       fills?.length ?? 0,
+    realizedPnl,
+    volume,
+    fees,
+    winTrades,
+    lossTrades,
+    totalClosedTrades,
+    winRate,
+    bestTrade:  bestTrade  === -Infinity ? null : bestTrade,
+    worstTrade: worstTrade ===  Infinity ? null : worstTrade,
+  };
+}
+
+/* ────────────────── Load all ────────────────── */
+async function loadAll(forceRefresh = true) {
+  const participants = loadParticipants();
+  if (!participants.length) {
+    setState('empty');
+    return;
+  }
+
+  // Check cache
+  if (!forceRefresh) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (cached && Date.now() - cached.ts < CACHE_TTL) {
+        tableData = cached.data;
+        renderAll(participants);
+        setUpdatedTime(cached.ts);
+        return;
+      }
+    } catch {}
+  }
+
+  setState('loading');
+  document.getElementById('refreshBtn').disabled = true;
+  document.getElementById('statusDot').className = 'dot loading';
+
+  const now = Date.now();
+  const startMs = now - 7 * 24 * 60 * 60 * 1000;
+  const endDate = new Date(now), startDate = new Date(startMs);
+  document.getElementById('periodLabel').textContent =
+    `统计区间：${startDate.toLocaleDateString('zh-CN')} — ${endDate.toLocaleDateString('zh-CN')}（近 7 天）`;
+
+  // Show progress
+  const prog = document.getElementById('progressWrap');
+  const pbFill = document.getElementById('pbFill');
+  prog.classList.add('show');
+
+  const results = [];
+  const total = participants.length;
+
+  // Fetch in batches of 3 to avoid rate limiting
+  const BATCH = 3;
+  for (let i = 0; i < participants.length; i += BATCH) {
+    const batch = participants.slice(i, i + BATCH);
+    const batchResults = await Promise.all(
+      batch.map(async p => {
+        try {
+          const stats = await fetch7dStats(p.address);
+          return { ...stats, name: p.name, error: null };
+        } catch (e) {
+          return { address: p.address, name: p.name, error: e.message,
+            realizedPnl: null, volume: 0, fees: 0, fills: 0,
+            winRate: null, bestTrade: null, worstTrade: null, totalClosedTrades: 0 };
+        }
+      })
+    );
+    results.push(...batchResults);
+
+    const done = Math.min(i + BATCH, total);
+    document.getElementById('progressLabel').textContent = `正在加载… (${done}/${total})`;
+    document.getElementById('progressCount').textContent = `${done} / ${total}`;
+    pbFill.style.width = (done / total * 100) + '%';
+
+    if (i + BATCH < participants.length) {
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+
+  prog.classList.remove('show');
+  document.getElementById('refreshBtn').disabled = false;
+  document.getElementById('statusDot').className = 'dot';
+
+  tableData = results;
+  // Cache
+  localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: results }));
+  setUpdatedTime(Date.now());
+  renderAll(participants);
+}
+
+function setState(state) {
+  document.getElementById('emptyState').style.display   = state === 'empty'   ? '' : 'none';
+  document.getElementById('loadingState').style.display = state === 'loading' ? '' : 'none';
+  document.getElementById('contentArea').style.display  = state === 'content' ? '' : 'none';
+  document.getElementById('statsBar').style.display     = state === 'content' ? '' : 'none';
+}
+
+function setUpdatedTime(ts) {
+  document.getElementById('lastUpdatedText').textContent =
+    '更新于 ' + new Date(ts).toLocaleTimeString('zh-CN');
+}
+
+/* ────────────────── Render ────────────────── */
+function setSortMode(mode, btn) {
+  sortMode = mode;
+  if (mode === 'pnl')     { sortKey = 'pnl';     sortAsc = false; }
+  if (mode === 'volume')  { sortKey = 'volume';   sortAsc = false; }
+  if (mode === 'winrate') { sortKey = 'winrate';  sortAsc = false; }
+  document.querySelectorAll('.sort-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (tableData.length) renderTable();
+}
+
+function toggleSort(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = false; }
+  updateArrows();
+  renderTable();
+}
+
+function updateArrows() {
+  ['rank','name','pnl','volume','trades','winrate','bestTrade','fees'].forEach(k => {
+    const el = document.getElementById('arr-' + k);
+    if (el) el.textContent = sortKey === k ? (sortAsc ? '↑' : '↓') : '';
+  });
+}
+
+function sortedData() {
+  return [...tableData].sort((a, b) => {
+    let va = a[sortKey === 'pnl' ? 'realizedPnl' : sortKey === 'trades' ? 'fills' : sortKey === 'fees' ? 'fees' : sortKey];
+    let vb = b[sortKey === 'pnl' ? 'realizedPnl' : sortKey === 'trades' ? 'fills' : sortKey === 'fees' ? 'fees' : sortKey];
+    if (sortKey === 'name') { va = a.name || ''; vb = b.name || ''; return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va); }
+    if (sortKey === 'rank') { va = a.realizedPnl; vb = b.realizedPnl; }
+    va = va ?? -Infinity; vb = vb ?? -Infinity;
+    return sortAsc ? va - vb : vb - va;
+  });
+}
+
+function renderAll(participants) {
+  setState('content');
+  updateArrows();
+
+  // Stats bar
+  const valid = tableData.filter(d => d.realizedPnl != null);
+  const totalPnl = valid.reduce((s, d) => s + (d.realizedPnl || 0), 0);
+  const totalVol = tableData.reduce((s, d) => s + (d.volume || 0), 0);
+  const bestSingle = Math.max(...tableData.map(d => d.bestTrade ?? -Infinity).filter(isFinite));
+  document.getElementById('statCount').textContent    = participants.length;
+  const pnlEl = document.getElementById('statTotalPnl');
+  pnlEl.textContent  = fmtK(Math.abs(totalPnl));
+  pnlEl.className = 'sbi-value ' + (totalPnl >= 0 ? 'pos' : 'neg');
+  document.getElementById('statTotalVol').textContent = fmtK(totalVol);
+  const bestEl = document.getElementById('statBestTrade');
+  bestEl.textContent = isFinite(bestSingle) ? fmtK(bestSingle) : '—';
+  bestEl.className = 'sbi-value pos';
+
+  renderPodium();
+  renderTable();
+}
+
+function renderPodium() {
+  const ranked = [...tableData]
+    .filter(d => d.realizedPnl != null)
+    .sort((a, b) => b.realizedPnl - a.realizedPnl)
+    .slice(0, 3);
+
+  if (ranked.length < 1) { document.getElementById('podium').style.display = 'none'; return; }
+
+  // Reorder: 2nd, 1st, 3rd
+  const display = ranked.length >= 2 ? [ranked[1], ranked[0], ranked[2]].filter(Boolean) : ranked;
+  const crowns = ['&#129704;', '&#129351;', '&#129352;']; // 2nd, 1st, 3rd → reordered
+  const realCrowns = ranked.length >= 2 ? [crowns[1], crowns[0], crowns[2]] : [crowns[0]];
+
+  document.getElementById('podium').innerHTML = display.map((d, i) => {
+    const realRank = ranked.indexOf(d) + 1;
+    const rankCls  = realRank === 1 ? 'rank-gold' : realRank === 2 ? 'rank-silver' : 'rank-bronze';
+    const pnlCls   = d.realizedPnl >= 0 ? 'pos' : 'neg';
+    return `
+      <div class="podium-item">
+        <div class="podium-card">
+          <div class="podium-crown">${realCrowns[i]}</div>
+          <div class="podium-name ${rankCls}">${escHtml(d.name)}</div>
+          <div class="podium-addr">${shortAddr(d.address)}</div>
+          <div class="podium-pnl ${pnlCls}">${fmtUsd(d.realizedPnl, true)}</div>
+          <div class="podium-vol">${fmtK(d.volume)} 交易量</div>
+        </div>
+        <div class="podium-block"></div>
+      </div>`;
+  }).join('');
+}
+
+function renderTable() {
+  const sorted = sortedData();
+  const pnlRanked = [...tableData]
+    .filter(d => d.realizedPnl != null)
+    .sort((a, b) => b.realizedPnl - a.realizedPnl);
+
+  const body = document.getElementById('tableBody');
+  body.innerHTML = sorted.map(d => {
+    if (d.error) {
+      return `<tr class="err-row">
+        <td>—</td>
+        <td><span class="cell-name">${escHtml(d.name)}</span><span class="cell-addr">${d.address}</span></td>
+        <td colspan="7" style="color:var(--red);font-size:12px">加载失败：${escHtml(d.error)}</td>
+      </tr>`;
+    }
+
+    const rank     = pnlRanked.findIndex(r => r.address === d.address) + 1;
+    const rankCls  = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : '';
+    const winPct   = d.winRate != null ? Math.round(d.winRate * 100) : null;
+    const winColor = winPct != null && winPct >= 50 ? 'var(--green)' : 'var(--red)';
+
+    return `<tr>
+      <td class="cell-rank ${rankCls}">${rank || '—'}</td>
+      <td>
+        <span class="cell-name">${escHtml(d.name)}</span>
+        <span class="cell-addr">${d.address}</span>
+      </td>
+      <td class="text-right">${pnlSpan(d.realizedPnl)}</td>
+      <td class="text-right cell-mono">${fmtK(d.volume)}</td>
+      <td class="text-right cell-mono">${d.fills}</td>
+      <td>
+        ${winPct != null ? `<div class="win-bar">
+          <div class="win-track"><div class="win-fill" style="width:${winPct}%;background:${winColor}"></div></div>
+          <span class="win-pct" style="color:${winColor}">${winPct}%</span>
+        </div>` : '<span style="color:var(--muted)">—</span>'}
+      </td>
+      <td class="text-right">${d.bestTrade != null ? pnlSpan(d.bestTrade) : '<span style="color:var(--muted)">—</span>'}</td>
+      <td class="text-right cell-mono neg">${d.fees > 0 ? '-' + fmtUsd(d.fees) : '—'}</td>
+      <td>
+        <a href="index.html?addr=${d.address}" target="_blank"
+           style="color:var(--accent);text-decoration:none;font-size:12px">详情</a>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ────────────────── Init ────────────────── */
+(function init() {
+  const participants = loadParticipants();
+  if (!participants.length) {
+    setState('empty');
+    return;
+  }
+  // Try cache first, then load fresh
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    if (cached && Date.now() - cached.ts < CACHE_TTL) {
+      tableData = cached.data;
+      const now = Date.now(), start = now - 7 * 24 * 60 * 60 * 1000;
+      document.getElementById('periodLabel').textContent =
+        `统计区间：${new Date(start).toLocaleDateString('zh-CN')} — ${new Date(now).toLocaleDateString('zh-CN')}（近 7 天）`;
+      renderAll(participants);
+      setUpdatedTime(cached.ts);
+      return;
+    }
+  } catch {}
+  loadAll(true);
+})();
+</script>
+</body>
+</html>
