@@ -276,7 +276,6 @@
   </a>
   <a href="leaderboard.html" class="nav-link active">排行榜</a>
   <a href="index.html"       class="nav-link">个人统计</a>
-  <a href="admin.html"       class="nav-link">后台管理</a>
   <div class="nav-spacer"></div>
   <div class="nav-right">
     <div class="last-updated" id="lastUpdated">
@@ -302,7 +301,6 @@
         <button class="sort-tab" onclick="setSortMode('winrate', this)">胜率</button>
       </div>
       <button class="btn" id="refreshBtn" onclick="loadAll()">刷新</button>
-      <a href="admin.html" class="btn btn-ghost btn-sm">管理参赛者</a>
     </div>
   </div>
 
@@ -339,7 +337,7 @@
   <div class="state-box" id="emptyState">
     <div style="font-size:36px;opacity:0.3">&#127942;</div>
     <p>暂无参赛者数据</p>
-    <p style="font-size:13px">你可以在 <a href="admin.html">后台管理</a> 中调整内置参赛者名单。</p>
+    <p style="font-size:13px">请先配置参赛者名单（此站点内置了默认名单）。</p>
   </div>
 
   <div class="state-box" id="loadingState" style="display:none">
