@@ -257,7 +257,7 @@
 <div class="page">
   <div class="page-header">
     <h1>参赛者管理</h1>
-    <p>添加或移除参赛钱包地址，数据保存在本地浏览器中。</p>
+    <p>已内置默认参赛者名单；你在这里的增删改会保存在本地浏览器中。</p>
   </div>
 
   <!-- Add participant -->
@@ -306,10 +306,27 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<script src="participants.js"></script>
 <script>
 const STORAGE_KEY = 'hl_participants';
 
+function _loadRaw() {
+  return localStorage.getItem(STORAGE_KEY);
+}
+
+function _seedDefaultsIfNeeded() {
+  const raw = _loadRaw();
+  if (raw != null) return;
+  const defaults = (window.HL_DEFAULT_PARTICIPANTS || []).map(p => ({
+    address: String(p.address || '').toLowerCase(),
+    name: p.name || shortAddr(String(p.address || '')),
+    addedAt: Date.now()
+  }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
+}
+
 function load() {
+  _seedDefaultsIfNeeded();
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
   catch { return []; }
 }

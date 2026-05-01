@@ -339,7 +339,7 @@
   <div class="state-box" id="emptyState">
     <div style="font-size:36px;opacity:0.3">&#127942;</div>
     <p>暂无参赛者数据</p>
-    <p style="font-size:13px">请先前往 <a href="admin.html">后台管理</a> 添加参赛钱包地址。</p>
+    <p style="font-size:13px">你可以在 <a href="admin.html">后台管理</a> 中调整内置参赛者名单。</p>
   </div>
 
   <div class="state-box" id="loadingState" style="display:none">
@@ -374,6 +374,7 @@
 
 </div>
 
+<script src="participants.js"></script>
 <script>
 const API = 'https://api.hyperliquid.xyz/info';
 const STORAGE_KEY = 'hl_participants';
@@ -385,7 +386,15 @@ let tableData = [];
 
 /* ────────────────── utils ────────────────── */
 function loadParticipants() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw == null) {
+    return (window.HL_DEFAULT_PARTICIPANTS || []).map(p => ({
+      address: String(p.address || '').toLowerCase(),
+      name: p.name || shortAddr(String(p.address || '')),
+      addedAt: Date.now()
+    }));
+  }
+  try { return JSON.parse(raw || '[]'); }
   catch { return []; }
 }
 
