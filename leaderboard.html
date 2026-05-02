@@ -370,7 +370,20 @@
 const API = 'https://api.hyperliquid.xyz/info';
 const STORAGE_KEY = 'hl_participants';
 const CACHE_KEY   = 'hl_lb_cache';
+const DATA_VERSION_KEY = 'hl_data_version';
 const CACHE_TTL   = 5 * 60 * 1000; // 5 minutes
+
+function applyLocalDataVersionMigrations() {
+  const target = Number(window.HL_LOCAL_DATA_VERSION || 0);
+  if (!target) return;
+  const cur = Number(localStorage.getItem(DATA_VERSION_KEY) || '0');
+  if (cur === target) return;
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(CACHE_KEY);
+  localStorage.setItem(DATA_VERSION_KEY, String(target));
+}
+
+applyLocalDataVersionMigrations();
 
 let sortKey = 'pnl', sortAsc = false, sortMode = 'pnl';
 let tableData = [];

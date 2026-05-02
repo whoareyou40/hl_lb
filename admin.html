@@ -309,6 +309,19 @@
 <script src="participants.js"></script>
 <script>
 const STORAGE_KEY = 'hl_participants';
+const DATA_VERSION_KEY = 'hl_data_version';
+
+function applyLocalDataVersionMigrations() {
+  const target = Number(window.HL_LOCAL_DATA_VERSION || 0);
+  if (!target) return;
+  const cur = Number(localStorage.getItem(DATA_VERSION_KEY) || '0');
+  if (cur === target) return;
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem('hl_lb_cache');
+  localStorage.setItem(DATA_VERSION_KEY, String(target));
+}
+
+applyLocalDataVersionMigrations();
 
 function _loadRaw() {
   return localStorage.getItem(STORAGE_KEY);

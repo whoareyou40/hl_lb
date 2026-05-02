@@ -1,5 +1,12 @@
 // Built-in participant list (seeded into localStorage on first run).
 // This file is intentionally tiny and framework-free so it works on any static host.
+//
+// When you want ALL visitors to discard old browser-side caches on next load,
+// bump `HL_LOCAL_DATA_VERSION` and deploy. This clears:
+// - hl_lb_cache (leaderboard cache)
+// - hl_participants (local participant list; will re-seed from HL_DEFAULT_PARTICIPANTS)
+window.HL_LOCAL_DATA_VERSION = 1;
+
 window.HL_DEFAULT_PARTICIPANTS = [
   { address: "0x8dd9bef9f99750d9b9f8433a0032d3ba8a492121", name: "wmsooooj" },
   { address: "0xb325e9fe36c0ca5a0862551d0310217e381a029b", name: "hh" },
@@ -11,7 +18,7 @@ window.HL_DEFAULT_PARTICIPANTS = [
   { address: "0xf605168cd88168b553fe89161ad22f74147c9d00", name: "MinerB" },
   { address: "0x4eb0eab5e543374b1f5faa586728a27c48c7b09e", name: "0xfree" },
   { address: "0x7effe5b3b66f2a6698e8e060cbc9aa36fd9763ee", name: "jim" },
-  { address: "0x7effe5b3b66f2a6698e8e060cbc9aa36fd9763ee", name: "newjim"},
+  { address: "0x029b9dc972cbe905f0e0e6fce153b5be3bce13c7", name: "newjim"},
   { address: "0xc07A4756CD5d82dA0F1599cE9942FC49B6265f7d", name: "boss" } 
 ];
 
