@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>7日排行榜 · Hyperliquid</title>
+  <title>比赛排行榜 · Hyperliquid</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -290,13 +290,13 @@
   <!-- Header -->
   <div class="page-top">
     <div>
-      <h1>7 日交易排行榜</h1>
+      <h1>交易比赛排行榜</h1>
       <p id="periodLabel">统计区间：加载中…</p>
     </div>
     <div class="top-actions">
       <!-- Sort tabs -->
       <div class="sort-tabs">
-        <button class="sort-tab active" onclick="setSortMode('pnl', this)">已实现 PnL</button>
+        <button class="sort-tab active" onclick="setSortMode('pnl', this)">比赛 PnL</button>
         <button class="sort-tab" onclick="setSortMode('volume', this)">交易量</button>
       </div>
       <button class="btn" id="refreshBtn" onclick="loadAll()">刷新</button>
@@ -319,7 +319,7 @@
       <div class="sbi-value" id="statCount">—</div>
     </div>
     <div class="stats-bar-item">
-      <div class="sbi-label">总已实现 PnL</div>
+      <div class="sbi-label">总比赛 PnL</div>
       <div class="sbi-value" id="statTotalPnl">—</div>
     </div>
     <div class="stats-bar-item">
@@ -352,8 +352,8 @@
             <th class="cell-rank" onclick="toggleSort('rank')">#<span class="arr" id="arr-rank"></span></th>
             <th onclick="toggleSort('name')">参赛者<span class="arr" id="arr-name"></span></th>
             <th class="text-right" onclick="toggleSort('balance')">当前余额<span class="arr" id="arr-balance"></span></th>
-            <th class="text-right" onclick="toggleSort('pnl')">7日PnL（已实现+未实现-手续费）<span class="arr" id="arr-pnl">↓</span></th>
-            <th class="text-right" onclick="toggleSort('volume')">7日交易量<span class="arr" id="arr-volume"></span></th>
+            <th class="text-right" onclick="toggleSort('pnl')">比赛PnL（已实现+未实现-手续费）<span class="arr" id="arr-pnl">↓</span></th>
+            <th class="text-right" onclick="toggleSort('volume')">比赛交易量<span class="arr" id="arr-volume"></span></th>
             <th class="text-right" onclick="toggleSort('trades')">成交笔数<span class="arr" id="arr-trades"></span></th>
             <th class="text-right" onclick="toggleSort('fees')">手续费<span class="arr" id="arr-fees"></span></th>
           </tr>
@@ -373,6 +373,10 @@ const CACHE_KEY   = 'hl_lb_cache';
 const DATA_VERSION_KEY = 'hl_data_version';
 const CACHE_TTL   = 5 * 60 * 1000; // 5 minutes
 
+// Competition window (Beijing time, UTC+8)
+const COMP_START_MS = Date.parse('2026-04-24T20:00:00+08:00');
+const COMP_END_MS   = Date.parse('2026-05-07T20:00:00+08:00');
+
 function applyLocalDataVersionMigrations() {
   const target = Number(window.HL_LOCAL_DATA_VERSION || 0);
   if (!target) return;
@@ -387,6 +391,21 @@ applyLocalDataVersionMigrations();
 
 let sortKey = 'pnl', sortAsc = false, sortMode = 'pnl';
 let tableData = [];
+
+function competitionFillsWindowMs(now = Date.now()) {
+  if (now < COMP_START_MS) return null;
+  const end = Math.min(now, COMP_END_MS);
+  return { startTime: COMP_START_MS, endTime: end };
+}
+
+function formatCompetitionPeriodLabel() {
+  const fmt = ms => new Date(ms).toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  });
+  return `比赛区间（北京时间）：${fmt(COMP_START_MS)} — ${fmt(COMP_END_MS)}`;
+}
 
 /* ────────────────── utils ────────────────── */
 function loadParticipants() {
@@ -467,10 +486,24 @@ async function fetchAccountSnapshot(address, mids) {
   return { perpAccountValue, unrealizedPnl, spotValue, totalBalance };
 }
 
-async function fetch7dStats(address) {
-  const now = Date.now();
-  const start = now - 7 * 24 * 60 * 60 * 1000;
-  const fills = await postInfo({ type: 'userFillsByTime', user: address, startTime: start, endTime: now });
+async function fetchCompetitionStats(address) {
+  const win = competitionFillsWindowMs();
+  if (!win) {
+    return {
+      address,
+      fills: 0,
+      realizedPnl: 0,
+      pnl7d: 0,
+      volume: 0,
+      fees: 0,
+    };
+  }
+  const fills = await postInfo({
+    type: 'userFillsByTime',
+    user: address,
+    startTime: win.startTime,
+    endTime: win.endTime
+  });
 
   let realizedPnl = 0, volume = 0, fees = 0;
 
@@ -501,6 +534,19 @@ async function loadAll(forceRefresh = true) {
     return;
   }
 
+  document.getElementById('periodLabel').textContent = formatCompetitionPeriodLabel();
+
+  const now = Date.now();
+  if (now < COMP_START_MS) {
+    setState('empty');
+    document.getElementById('emptyState').innerHTML = `
+      <div style="font-size:36px;opacity:0.3">&#9200;</div>
+      <p>比赛尚未开始</p>
+      <p style="font-size:13px;color:var(--muted)">${formatCompetitionPeriodLabel()}</p>
+    `;
+    return;
+  }
+
   // Check cache
   if (!forceRefresh) {
     try {
@@ -521,12 +567,6 @@ async function loadAll(forceRefresh = true) {
   let mids = null;
   try { mids = await fetchAllMids(); } catch { mids = null; }
 
-  const now = Date.now();
-  const startMs = now - 7 * 24 * 60 * 60 * 1000;
-  const endDate = new Date(now), startDate = new Date(startMs);
-  document.getElementById('periodLabel').textContent =
-    `统计区间：${startDate.toLocaleDateString('zh-CN')} — ${endDate.toLocaleDateString('zh-CN')}（近 7 天）`;
-
   // Show progress
   const prog = document.getElementById('progressWrap');
   const pbFill = document.getElementById('pbFill');
@@ -543,7 +583,7 @@ async function loadAll(forceRefresh = true) {
       batch.map(async p => {
         try {
           const [stats, snap] = await Promise.all([
-            fetch7dStats(p.address),
+            fetchCompetitionStats(p.address),
             fetchAccountSnapshot(p.address, mids)
           ]);
           const pnl7d = (stats.realizedPnl || 0) + (snap.unrealizedPnl || 0) - (stats.fees || 0);
@@ -732,14 +772,12 @@ function escHtml(s) {
     setState('empty');
     return;
   }
+  document.getElementById('periodLabel').textContent = formatCompetitionPeriodLabel();
   // Try cache first, then load fresh
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
     if (cached && Date.now() - cached.ts < CACHE_TTL) {
       tableData = cached.data;
-      const now = Date.now(), start = now - 7 * 24 * 60 * 60 * 1000;
-      document.getElementById('periodLabel').textContent =
-        `统计区间：${new Date(start).toLocaleDateString('zh-CN')} — ${new Date(now).toLocaleDateString('zh-CN')}（近 7 天）`;
       renderAll(participants);
       setUpdatedTime(cached.ts);
       return;
