@@ -471,9 +471,10 @@ function spotValueUsd(spotState, mids) {
 }
 
 async function fetchAccountSnapshot(address, mids) {
-  const [perp, spot] = await Promise.all([
+  const [perp, spot, abstraction] = await Promise.all([
     postInfo({ type: 'clearinghouseState', user: address }),
     postInfo({ type: 'spotClearinghouseState', user: address }),
+    postInfo({ type: 'userAbstraction', user: address }).catch(() => ''),
   ]);
   const margin = perp?.marginSummary || {};
   const perpAccountValue = parseFloat(margin.accountValue || 0);
@@ -481,7 +482,12 @@ async function fetchAccountSnapshot(address, mids) {
   const unrealizedPnl = positions.reduce((s, p) => s + parseFloat(p?.unrealizedPnl || 0), 0);
 
   const spotValue = spotValueUsd(spot, mids);
-  const totalBalance = (isFinite(perpAccountValue) ? perpAccountValue : 0) + (isFinite(spotValue) ? spotValue : 0);
+  const mode = typeof abstraction === 'string' ? abstraction : '';
+  // Unified / portfolio margin: collateral lives in spot clearinghouse; perp marginSummary overlaps — use spot mark + perp uPnL (Hyperliquid docs).
+  const unifiedLike = mode === 'unifiedAccount' || mode === 'portfolioMargin';
+  const totalBalance = unifiedLike
+    ? (isFinite(spotValue) ? spotValue : 0) + (isFinite(unrealizedPnl) ? unrealizedPnl : 0)
+    : (isFinite(perpAccountValue) ? perpAccountValue : 0) + (isFinite(spotValue) ? spotValue : 0);
 
   return { perpAccountValue, unrealizedPnl, spotValue, totalBalance };
 }
