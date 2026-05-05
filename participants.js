@@ -5,7 +5,7 @@
 // bump `HL_LOCAL_DATA_VERSION` and deploy. This clears:
 // - hl_lb_cache (leaderboard cache)
 // - hl_participants (local participant list; will re-seed from HL_DEFAULT_PARTICIPANTS)
-window.HL_LOCAL_DATA_VERSION = 2;
+window.HL_LOCAL_DATA_VERSION = 3;
 
 window.HL_DEFAULT_PARTICIPANTS = [
   { address: "0x8dd9bef9f99750d9b9f8433a0032d3ba8a492121", name: "wmsooooj" },
