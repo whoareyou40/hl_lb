@@ -681,16 +681,24 @@ function safeNorm(x, min, max) {
 }
 
 function computeFinalScores() {
-  const valid = tableData.filter(d => !d?.error && isFinite(d?.pnl7d));
-  const pnlVals = valid.map(d => d.pnl7d).filter(v => isFinite(v));
-  const volVals = valid.map(d => d.volume).filter(v => isFinite(v));
+  // Only score/rank participants with at least 1 trade during the competition window
+  const eligible = tableData.filter(d =>
+    !d?.error &&
+    isFinite(d?.pnl7d) &&
+    isFinite(d?.volume) &&
+    (d?.fills ?? 0) > 0 &&
+    d.volume > 0
+  );
+  const pnlVals = eligible.map(d => d.pnl7d).filter(v => isFinite(v));
+  const volVals = eligible.map(d => d.volume).filter(v => isFinite(v));
   const pnlMin = pnlVals.length ? Math.min(...pnlVals) : null;
   const pnlMax = pnlVals.length ? Math.max(...pnlVals) : null;
   const volMin = volVals.length ? Math.min(...volVals) : null;
   const volMax = volVals.length ? Math.max(...volVals) : null;
 
   tableData.forEach(d => {
-    if (d?.error || !isFinite(d?.pnl7d)) {
+    const hasTrades = (d?.fills ?? 0) > 0 && isFinite(d?.volume) && d.volume > 0;
+    if (d?.error || !isFinite(d?.pnl7d) || !hasTrades) {
       d.finalScore = null;
       return;
     }
@@ -749,7 +757,7 @@ function renderAll(participants) {
 
 function renderPodium() {
   const ranked = [...tableData]
-    .filter(d => d.finalScore != null)
+    .filter(d => d.finalScore != null && (d.fills ?? 0) > 0)
     .sort((a, b) => b.finalScore - a.finalScore)
     .slice(0, 3);
 
@@ -781,7 +789,7 @@ function renderPodium() {
 function renderTable() {
   const sorted = sortedData();
   const finalRanked = [...tableData]
-    .filter(d => d.finalScore != null)
+    .filter(d => d.finalScore != null && (d.fills ?? 0) > 0)
     .sort((a, b) => b.finalScore - a.finalScore);
 
   const body = document.getElementById('tableBody');
