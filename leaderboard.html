@@ -296,7 +296,8 @@
     <div class="top-actions">
       <!-- Sort tabs -->
       <div class="sort-tabs">
-        <button class="sort-tab active" onclick="setSortMode('pnl', this)">比赛 PnL</button>
+        <button class="sort-tab active" onclick="setSortMode('final', this)">最终得分</button>
+        <button class="sort-tab" onclick="setSortMode('pnl', this)">比赛 PnL</button>
         <button class="sort-tab" onclick="setSortMode('volume', this)">交易量</button>
       </div>
       <button class="btn" id="refreshBtn" onclick="loadAll()">刷新</button>
@@ -354,6 +355,7 @@
             <th class="text-right" onclick="toggleSort('balance')">当前余额<span class="arr" id="arr-balance"></span></th>
             <th class="text-right" onclick="toggleSort('pnl')">比赛PnL（已实现+未实现-手续费）<span class="arr" id="arr-pnl">↓</span></th>
             <th class="text-right" onclick="toggleSort('volume')">比赛交易量<span class="arr" id="arr-volume"></span></th>
+            <th class="text-right" onclick="toggleSort('final')">最终得分<span class="arr" id="arr-final"></span></th>
             <th class="text-right" onclick="toggleSort('trades')">成交笔数<span class="arr" id="arr-trades"></span></th>
             <th class="text-right" onclick="toggleSort('fees')">手续费<span class="arr" id="arr-fees"></span></th>
           </tr>
@@ -373,6 +375,13 @@ const CACHE_KEY   = 'hl_lb_cache';
 const DATA_VERSION_KEY = 'hl_data_version';
 const CACHE_TTL   = 5 * 60 * 1000; // 5 minutes
 
+// Final score config
+// 最终得分 = 归一化(比赛 PnL) * 70 + 归一化(交易量得分) * 30
+// - 比赛 PnL：pnl7d（已实现 + 未实现 - 手续费）
+// - 交易量得分：这里用比赛期间的 `volume` 作为原始值
+const FINAL_WEIGHT_PNL = 0.70;
+const FINAL_WEIGHT_VOL = 0.30;
+
 // Competition window (Beijing time, UTC+8)
 const COMP_START_MS = Date.parse('2026-04-24T20:00:00+08:00');
 const COMP_END_MS   = Date.parse('2026-05-07T20:00:00+08:00');
@@ -389,7 +398,7 @@ function applyLocalDataVersionMigrations() {
 
 applyLocalDataVersionMigrations();
 
-let sortKey = 'pnl', sortAsc = false, sortMode = 'pnl';
+let sortKey = 'final', sortAsc = false, sortMode = 'final';
 let tableData = [];
 
 function competitionFillsWindowMs(now = Date.now()) {
@@ -619,6 +628,7 @@ async function loadAll(forceRefresh = true) {
   document.getElementById('statusDot').className = 'dot';
 
   tableData = results;
+  computeFinalScores();
   // Cache
   localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: results }));
   setUpdatedTime(Date.now());
@@ -640,8 +650,9 @@ function setUpdatedTime(ts) {
 /* ────────────────── Render ────────────────── */
 function setSortMode(mode, btn) {
   sortMode = mode;
+  if (mode === 'final')   { sortKey = 'final';   sortAsc = false; }
   if (mode === 'pnl')     { sortKey = 'pnl';     sortAsc = false; }
-  if (mode === 'volume')  { sortKey = 'volume';   sortAsc = false; }
+  if (mode === 'volume')  { sortKey = 'volume';  sortAsc = false; }
   document.querySelectorAll('.sort-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   if (tableData.length) renderTable();
@@ -655,9 +666,41 @@ function toggleSort(key) {
 }
 
 function updateArrows() {
-  ['rank','name','balance','pnl','volume','trades','fees'].forEach(k => {
+  ['rank','name','balance','pnl','volume','final','trades','fees'].forEach(k => {
     const el = document.getElementById('arr-' + k);
     if (el) el.textContent = sortKey === k ? (sortAsc ? '↑' : '↓') : '';
+  });
+}
+
+function safeNorm(x, min, max) {
+  if (x == null || !isFinite(x)) return null;
+  if (min == null || !isFinite(min) || max == null || !isFinite(max)) return null;
+  const den = max - min;
+  if (den === 0) return 1;
+  return (x - min) / den;
+}
+
+function computeFinalScores() {
+  const valid = tableData.filter(d => !d?.error && isFinite(d?.pnl7d));
+  const pnlVals = valid.map(d => d.pnl7d).filter(v => isFinite(v));
+  const volVals = valid.map(d => d.volume).filter(v => isFinite(v));
+  const pnlMin = pnlVals.length ? Math.min(...pnlVals) : null;
+  const pnlMax = pnlVals.length ? Math.max(...pnlVals) : null;
+  const volMin = volVals.length ? Math.min(...volVals) : null;
+  const volMax = volVals.length ? Math.max(...volVals) : null;
+
+  tableData.forEach(d => {
+    if (d?.error || !isFinite(d?.pnl7d)) {
+      d.finalScore = null;
+      return;
+    }
+    const pnlN = safeNorm(d.pnl7d, pnlMin, pnlMax);
+    const volN = safeNorm(d.volume, volMin, volMax);
+    if (pnlN == null || volN == null) {
+      d.finalScore = null;
+      return;
+    }
+    d.finalScore = pnlN * (FINAL_WEIGHT_PNL * 100) + volN * (FINAL_WEIGHT_VOL * 100);
   });
 }
 
@@ -666,6 +709,7 @@ function sortedData() {
     let va = a[
       sortKey === 'pnl' ? 'pnl7d' :
       sortKey === 'balance' ? 'totalBalance' :
+      sortKey === 'final' ? 'finalScore' :
       sortKey === 'trades' ? 'fills' :
       sortKey === 'fees' ? 'fees' :
       sortKey
@@ -673,12 +717,13 @@ function sortedData() {
     let vb = b[
       sortKey === 'pnl' ? 'pnl7d' :
       sortKey === 'balance' ? 'totalBalance' :
+      sortKey === 'final' ? 'finalScore' :
       sortKey === 'trades' ? 'fills' :
       sortKey === 'fees' ? 'fees' :
       sortKey
     ];
     if (sortKey === 'name') { va = a.name || ''; vb = b.name || ''; return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va); }
-    if (sortKey === 'rank') { va = a.pnl7d; vb = b.pnl7d; }
+    if (sortKey === 'rank') { va = a.finalScore; vb = b.finalScore; }
     va = va ?? -Infinity; vb = vb ?? -Infinity;
     return sortAsc ? va - vb : vb - va;
   });
@@ -704,8 +749,8 @@ function renderAll(participants) {
 
 function renderPodium() {
   const ranked = [...tableData]
-    .filter(d => d.pnl7d != null)
-    .sort((a, b) => b.pnl7d - a.pnl7d)
+    .filter(d => d.finalScore != null)
+    .sort((a, b) => b.finalScore - a.finalScore)
     .slice(0, 3);
 
   if (ranked.length < 1) { document.getElementById('podium').style.display = 'none'; return; }
@@ -725,8 +770,8 @@ function renderPodium() {
           <div class="podium-crown">${realCrowns[i]}</div>
           <div class="podium-name ${rankCls}">${escHtml(d.name)}</div>
           <div class="podium-addr">${shortAddr(d.address)}</div>
-          <div class="podium-pnl ${pnlCls}">${fmtUsd(d.pnl7d, true)}</div>
-          <div class="podium-vol">${fmtK(d.volume)} 交易量</div>
+          <div class="podium-pnl">${fmt(d.finalScore, 2)} 分</div>
+          <div class="podium-vol">${fmtUsd(d.pnl7d, true)} PnL · ${fmtK(d.volume)} 交易量</div>
         </div>
         <div class="podium-block"></div>
       </div>`;
@@ -735,9 +780,9 @@ function renderPodium() {
 
 function renderTable() {
   const sorted = sortedData();
-  const pnlRanked = [...tableData]
-    .filter(d => d.pnl7d != null)
-    .sort((a, b) => b.pnl7d - a.pnl7d);
+  const finalRanked = [...tableData]
+    .filter(d => d.finalScore != null)
+    .sort((a, b) => b.finalScore - a.finalScore);
 
   const body = document.getElementById('tableBody');
   body.innerHTML = sorted.map(d => {
@@ -745,11 +790,11 @@ function renderTable() {
       return `<tr class="err-row">
         <td>—</td>
         <td><span class="cell-name">${escHtml(d.name)}</span><span class="cell-addr" title="${d.address}">${shortAddr(d.address)}</span></td>
-        <td colspan="5" style="color:var(--red);font-size:12px">加载失败：${escHtml(d.error)}</td>
+        <td colspan="7" style="color:var(--red);font-size:12px">加载失败：${escHtml(d.error)}</td>
       </tr>`;
     }
 
-    const rank     = pnlRanked.findIndex(r => r.address === d.address) + 1;
+    const rank     = finalRanked.findIndex(r => r.address === d.address) + 1;
     const rankCls  = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : '';
 
     return `<tr>
@@ -761,6 +806,7 @@ function renderTable() {
       <td class="text-right cell-mono">${isFinite(d.totalBalance) ? fmtK(d.totalBalance) : '—'}</td>
       <td class="text-right">${pnlSpan(d.pnl7d)}</td>
       <td class="text-right cell-mono">${fmtK(d.volume)}</td>
+      <td class="text-right cell-mono">${isFinite(d.finalScore) ? fmt(d.finalScore, 2) : '—'}</td>
       <td class="text-right cell-mono">${d.fills}</td>
       <td class="text-right cell-mono neg">${d.fees > 0 ? '-' + fmtUsd(d.fees) : '—'}</td>
     </tr>`;
